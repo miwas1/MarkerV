@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "headers": [
+      { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+      { "source": "/assets/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
+    ]
+  },
+  "remoteconfig": { "template": "remoteconfig.template.json" },
+  "firestore": {
+    "database": "ai-studio-markingassistant-8fa89a2a-307e-47b6-8085-eef88b18d9f3",
+    "rules": "firestore.rules"
+  }
+}

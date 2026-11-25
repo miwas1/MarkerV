@@ -1,0 +1,236 @@
+{
+  "entities": {
+    "SubmissionLink": {
+      "title": "SubmissionLink",
+      "description": "A unique, lecturer-configured student submission portal linked to a workspace project and optional grading rubric.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the lecturer who created and owns this submission portal."
+        },
+        "ownerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Lecturer display name shown on the student submission page."
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Workspace project identifier associated with this submission link."
+        },
+        "projectName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Course or project name displayed to students."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140,
+          "description": "Assessment or portal title."
+        },
+        "instructions": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Optional prompt or submission guidelines shown above the form."
+        },
+        "isOpen": {
+          "type": "boolean",
+          "description": "Whether students can currently submit responses through this link."
+        },
+        "autoMark": {
+          "type": "boolean",
+          "description": "Whether incoming submissions are queued (autoMarkStatus = 'pending') for lecturer-side auto-marking on the lecturer's device."
+        },
+        "showScoreToStudent": {
+          "type": "boolean",
+          "description": "Whether a local-only, non-official self-check estimate is shown on the student receipt (never persisted to Firestore; exposes rubricSnapshot levels to link holders)."
+        },
+        "rubricId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]*$",
+          "description": "Optional workspace rubric identifier attached to this portal."
+        },
+        "rubricTitle": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Title of the attached rubric."
+        },
+        "rubricSnapshot": {
+          "type": "object",
+          "description": "Optional immutable-per-save snapshot of rubric criteria used for auto-marking."
+        },
+        "fields": {
+          "type": "array",
+          "description": "Ordered list of 1 to 12 lecturer-configured submission fields (short text, large text, or file upload)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the link was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the link configuration was last updated."
+        }
+      },
+      "required": [
+        "ownerId",
+        "ownerName",
+        "projectId",
+        "projectName",
+        "title",
+        "instructions",
+        "isOpen",
+        "autoMark",
+        "showScoreToStudent",
+        "rubricId",
+        "rubricTitle",
+        "fields",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StudentSubmission": {
+      "title": "StudentSubmission",
+      "description": "A single student submission delivered through a unique lecturer submission link. Strictly private to the owning lecturer.",
+      "type": "object",
+      "properties": {
+        "linkId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Parent submission link identifier."
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owning lecturer UID, verified against the parent submission link on creation."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["submitted", "imported", "reviewed"],
+          "description": "Processing lifecycle status of the submission."
+        },
+        "submitterLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Display label derived from the student's configured identity fields (e.g. Name and Matric Number)."
+        },
+        "fieldValues": {
+          "type": "array",
+          "description": "Ordered list of 1 to 12 field responses matching the portal's configured fields."
+        },
+        "combinedAnswer": {
+          "type": "string",
+          "maxLength": 6000,
+          "description": "Consolidated written and extracted document text prepared for marking."
+        },
+        "attachmentImageDataUrl": {
+          "type": "string",
+          "maxLength": 240000,
+          "description": "Optional compressed JPEG data URL when a student uploads a handwritten photo or scanned page."
+        },
+        "attachmentFileName": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Primary uploaded filename if a file was attached."
+        },
+        "autoMarkStatus": {
+          "type": "string",
+          "enum": ["not_requested", "marked", "pending"],
+          "description": "Status of lecturer-side auto-marking. Student creates must send 'pending' (when link.autoMark is true) or 'not_requested' (when false); only the owning lecturer may transition to 'marked'."
+        },
+        "autoMarkEngine": {
+          "type": "string",
+          "enum": ["none", "device-ai", "rubric-heuristic"],
+          "description": "Engine used by the lecturer's device to generate suggestions. Must be 'none' on student create."
+        },
+        "marks": {
+          "type": "object",
+          "description": "Map of criterion IDs to integer scores written only by the owning lecturer (must be empty {} on student create)."
+        },
+        "suggestions": {
+          "type": "object",
+          "description": "Map of criterion IDs to evidence-backed suggestion objects written only by the owning lecturer (must be empty {} on student create)."
+        },
+        "totalEarned": {
+          "type": "number",
+          "description": "Sum of earned marks written only by the owning lecturer (must be 0 on student create)."
+        },
+        "totalPossible": {
+          "type": "number",
+          "description": "Maximum possible marks across rubric criteria."
+        },
+        "importedToWorkspace": {
+          "type": "boolean",
+          "description": "Whether the lecturer has imported this submission into their local Marking Assistant workspace."
+        },
+        "workspaceScriptId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]*$",
+          "description": "Workspace script ID created when imported."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the student submitted."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the submission record was last updated."
+        }
+      },
+      "required": [
+        "linkId",
+        "ownerId",
+        "status",
+        "submitterLabel",
+        "fieldValues",
+        "combinedAnswer",
+        "attachmentImageDataUrl",
+        "attachmentFileName",
+        "autoMarkStatus",
+        "autoMarkEngine",
+        "marks",
+        "suggestions",
+        "totalEarned",
+        "totalPossible",
+        "importedToWorkspace",
+        "workspaceScriptId",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/submissionLinks/{linkId}": {
+      "schema": {
+        "$ref": "#/entities/SubmissionLink"
+      },
+      "description": "Unique student submission portals created and managed by authenticated lecturers."
+    },
+    "/submissionLinks/{linkId}/submissions/{submissionId}": {
+      "schema": {
+        "$ref": "#/entities/StudentSubmission"
+      },
+      "description": "Write-only student submission dropbox under each portal; readable and manageable strictly by the owning lecturer."
+    }
+  }
+}

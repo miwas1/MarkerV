@@ -1,0 +1,9 @@
+{
+  "parameters": {
+    "allow_cloud_ai": {
+      "defaultValue": { "value": "false" },
+      "description": "Allows optional aggregate teaching summaries and fictional sample comparisons.",
+      "valueType": "BOOLEAN"
+    }
+  }
+}

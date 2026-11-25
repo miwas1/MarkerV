@@ -1,0 +1,271 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidLinkId(id) {
+      return id is string && id.size() >= 8 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidOptionalId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]*$');
+    }
+
+    function isValidFieldDef(field) {
+      return field is map
+        && field.keys().hasAll(['id', 'label', 'type', 'required', 'placeholder', 'accept', 'useForMarking'])
+        && field.keys().hasOnly(['id', 'label', 'type', 'required', 'placeholder', 'accept', 'useForMarking'])
+        && isValidId(field.id)
+        && field.label is string && field.label.size() >= 1 && field.label.size() <= 80
+        && field.type in ['short_text', 'long_text', 'file']
+        && field.required is bool
+        && field.placeholder is string && field.placeholder.size() <= 160
+        && field.accept in ['any', 'documents', 'images']
+        && field.useForMarking is bool;
+    }
+
+    function isValidRubricSnapshot(snap) {
+      return snap is map
+        && snap.keys().hasAll(['id', 'title', 'question', 'criteria'])
+        && snap.keys().hasOnly(['id', 'title', 'question', 'criteria'])
+        && isValidId(snap.id)
+        && snap.title is string && snap.title.size() >= 1 && snap.title.size() <= 120
+        && snap.question is string && snap.question.size() >= 1 && snap.question.size() <= 1200
+        && snap.criteria is list && snap.criteria.size() >= 1 && snap.criteria.size() <= 6
+        && snap.criteria[0] is map
+        && snap.criteria[0].keys().hasAll(['id', 'title', 'max', 'levels', 'practice'])
+        && snap.criteria[0].keys().hasOnly(['id', 'title', 'max', 'levels', 'practice'])
+        && isValidId(snap.criteria[0].id)
+        && snap.criteria[0].title is string && snap.criteria[0].title.size() >= 1 && snap.criteria[0].title.size() <= 90
+        && snap.criteria[0].max is int && snap.criteria[0].max >= 1 && snap.criteria[0].max <= 10
+        && snap.criteria[0].levels is list && snap.criteria[0].levels.size() >= 2 && snap.criteria[0].levels.size() <= 11
+        && snap.criteria[0].levels[0] is string && snap.criteria[0].levels[0].size() <= 600
+        && snap.criteria[0].practice is string && snap.criteria[0].practice.size() <= 200;
+    }
+
+    function isValidSubmissionLink(data) {
+      return data is map
+        && data.keys().hasAll([
+          'ownerId', 'ownerName', 'projectId', 'projectName', 'title', 'instructions',
+          'isOpen', 'autoMark', 'showScoreToStudent', 'rubricId', 'rubricTitle',
+          'fields', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'ownerName', 'projectId', 'projectName', 'title', 'instructions',
+          'isOpen', 'autoMark', 'showScoreToStudent', 'rubricId', 'rubricTitle',
+          'rubricSnapshot', 'fields', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 100
+        && isValidId(data.projectId)
+        && data.projectName is string && data.projectName.size() >= 1 && data.projectName.size() <= 100
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 140
+        && data.instructions is string && data.instructions.size() <= 2000
+        && data.isOpen is bool
+        && data.autoMark is bool
+        && data.showScoreToStudent is bool
+        && isValidOptionalId(data.rubricId)
+        && data.rubricTitle is string && data.rubricTitle.size() <= 120
+        && (!('rubricSnapshot' in data) || isValidRubricSnapshot(data.rubricSnapshot))
+        && (!data.autoMark || ('rubricSnapshot' in data && isValidRubricSnapshot(data.rubricSnapshot)))
+        && data.fields is list && data.fields.size() >= 1 && data.fields.size() <= 12
+        && isValidFieldDef(data.fields[0])
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFieldResponse(item) {
+      return item is map
+        && item.keys().hasAll([
+          'fieldId', 'label', 'type', 'textValue', 'fileName', 'fileType', 'fileSize', 'extractedText'
+        ])
+        && item.keys().hasOnly([
+          'fieldId', 'label', 'type', 'textValue', 'fileName', 'fileType', 'fileSize', 'extractedText'
+        ])
+        && isValidId(item.fieldId)
+        && item.label is string && item.label.size() >= 1 && item.label.size() <= 80
+        && item.type in ['short_text', 'long_text', 'file']
+        && item.textValue is string && item.textValue.size() <= 6000
+        && item.fileName is string && item.fileName.size() <= 160
+        && item.fileType is string && item.fileType.size() <= 120
+        && item.fileSize is int && item.fileSize >= 0 && item.fileSize <= 20971520
+        && item.extractedText is string && item.extractedText.size() <= 6000;
+    }
+
+    function isValidStudentSubmission(data, linkId) {
+      return data is map
+        && data.keys().hasAll([
+          'linkId', 'ownerId', 'status', 'submitterLabel', 'fieldValues', 'combinedAnswer',
+          'attachmentImageDataUrl', 'attachmentFileName', 'autoMarkStatus', 'autoMarkEngine',
+          'marks', 'suggestions', 'totalEarned', 'totalPossible',
+          'importedToWorkspace', 'workspaceScriptId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'linkId', 'ownerId', 'status', 'submitterLabel', 'fieldValues', 'combinedAnswer',
+          'attachmentImageDataUrl', 'attachmentFileName', 'autoMarkStatus', 'autoMarkEngine',
+          'marks', 'suggestions', 'totalEarned', 'totalPossible',
+          'importedToWorkspace', 'workspaceScriptId', 'createdAt', 'updatedAt'
+        ])
+        && isValidLinkId(data.linkId) && data.linkId == linkId
+        && isValidId(data.ownerId)
+        && data.status in ['submitted', 'imported', 'reviewed']
+        && data.submitterLabel is string && data.submitterLabel.size() >= 1 && data.submitterLabel.size() <= 160
+        && data.fieldValues is list && data.fieldValues.size() >= 1 && data.fieldValues.size() <= 12
+        && isValidFieldResponse(data.fieldValues[0])
+        && data.combinedAnswer is string && data.combinedAnswer.size() <= 6000
+        && data.attachmentImageDataUrl is string && data.attachmentImageDataUrl.size() <= 240000
+        && data.attachmentFileName is string && data.attachmentFileName.size() <= 160
+        && data.autoMarkStatus in ['not_requested', 'marked', 'pending']
+        && data.autoMarkEngine in ['none', 'device-ai', 'rubric-heuristic']
+        && data.marks is map && data.marks.size() <= 6
+        && data.suggestions is map && data.suggestions.size() <= 6
+        && data.totalEarned is int && data.totalEarned >= 0 && data.totalEarned <= 100
+        && data.totalPossible is int && data.totalPossible >= 0 && data.totalPossible <= 100
+        && data.totalEarned <= data.totalPossible
+        && data.importedToWorkspace is bool
+        && isValidOptionalId(data.workspaceScriptId)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isLinkOwner(linkId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/submissionLinks/$(linkId))
+        && get(/databases/$(database)/documents/submissionLinks/$(linkId)).data.ownerId == request.auth.uid;
+    }
+
+    match /submissionLinks/{linkId} {
+      // Students open a specific unique link by exact ID without signing in.
+      allow get: if isValidLinkId(linkId);
+
+      // Only the authenticated lecturer who owns the links can list them (no cross-lecturer scraping).
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      // Authenticated lecturer creates a unique submission portal.
+      allow create: if isSignedIn()
+        && isValidLinkId(linkId)
+        && isValidSubmissionLink(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      // Action-based update strictly by the owning lecturer.
+      allow update: if isSignedIn()
+        && isValidLinkId(linkId)
+        && isValidSubmissionLink(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Toggle portal open/closed
+          incoming().diff(existing()).affectedKeys().hasOnly(['isOpen', 'updatedAt'])
+          ||
+          // Action 2: Edit portal settings, fields, and auto-marking configuration
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'instructions', 'isOpen', 'autoMark', 'showScoreToStudent',
+            'rubricId', 'rubricTitle', 'rubricSnapshot', 'fields', 'updatedAt'
+          ])
+        );
+
+      allow delete: if isSignedIn()
+        && isValidLinkId(linkId)
+        && existing().ownerId == request.auth.uid;
+
+      match /submissions/{submissionId} {
+        // Strict PII Isolation: only the owning lecturer can read individual submissions.
+        allow get: if isSignedIn()
+          && isValidLinkId(linkId)
+          && isValidId(submissionId)
+          && existing().ownerId == request.auth.uid
+          && isLinkOwner(linkId);
+
+        // Cost-safe Secure List Query: zero get() lookups; enforces ownerId == request.auth.uid.
+        allow list: if isSignedIn()
+          && existing().ownerId == request.auth.uid;
+
+        // Public student dropbox create: allowed only when parent portal exists and is open.
+        // Students can NEVER write marks, suggestions, or scores — lecturer runs marking on their own device.
+        allow create: if isValidLinkId(linkId)
+          && isValidId(submissionId)
+          && isValidStudentSubmission(incoming(), linkId)
+          && incoming().status == 'submitted'
+          && incoming().importedToWorkspace == false
+          && incoming().workspaceScriptId == ''
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && incoming().marks.size() == 0
+          && incoming().suggestions.size() == 0
+          && incoming().totalEarned == 0
+          && incoming().autoMarkEngine == 'none'
+          && exists(/databases/$(database)/documents/submissionLinks/$(linkId))
+          && get(/databases/$(database)/documents/submissionLinks/$(linkId)).data.isOpen == true
+          && incoming().ownerId == get(/databases/$(database)/documents/submissionLinks/$(linkId)).data.ownerId
+          && incoming().autoMarkStatus == (
+            get(/databases/$(database)/documents/submissionLinks/$(linkId)).data.autoMark == true
+              ? 'pending'
+              : 'not_requested'
+          );
+
+        // Action-based update strictly by the owning lecturer; terminal state ('reviewed') is locked.
+        allow update: if isSignedIn()
+          && isValidLinkId(linkId)
+          && isValidId(submissionId)
+          && isValidStudentSubmission(incoming(), linkId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().linkId == existing().linkId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && existing().status != 'reviewed'
+          && isLinkOwner(linkId)
+          && (
+            // Action 1: Import submission into lecturer's local workspace
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'importedToWorkspace', 'workspaceScriptId', 'updatedAt'])
+              && incoming().importedToWorkspace == true
+              && incoming().status in ['imported', 'reviewed']
+            )
+            ||
+            // Action 2: Run or upgrade auto-marking on lecturer's device
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'autoMarkStatus', 'autoMarkEngine', 'marks', 'suggestions', 'totalEarned', 'totalPossible', 'updatedAt'
+            ])
+            ||
+            // Action 3: Mark submission as reviewed (terminal)
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              && incoming().status == 'reviewed'
+            )
+          );
+
+        allow delete: if isSignedIn()
+          && isValidLinkId(linkId)
+          && isValidId(submissionId)
+          && existing().ownerId == request.auth.uid
+          && isLinkOwner(linkId);
+      }
+    }
+  }
+}
