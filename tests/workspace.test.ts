@@ -428,6 +428,7 @@ test('A3, A4, B1 & C2: repairs AI drafts, trims long cloud audits, classifies er
     DraftFormatError,
     estimateMarkingTokens,
     ON_DEVICE_TOKEN_THRESHOLD,
+    parseModelJson,
     repairDraft,
     RubricAuditSchema,
     TeachingPlanSchema,
@@ -492,6 +493,16 @@ test('A3, A4, B1 & C2: repairs AI drafts, trims long cloud audits, classifies er
   assert.match(
     describeCloudErrorMessage(new Error('404 models/gemini-2.5-flash is not found'), 'fallback', 'gemini-2.5-flash').message,
     /unavailable/i,
+  )
+
+  // Malformed model JSON stays a SyntaxError (so format retries still trigger) but never shows parser internals
+  assert.deepEqual(parseModelJson('{"transcript":"ok"}'), { transcript: 'ok' })
+  assert.throws(
+    () => parseModelJson('{"transcript":"cut off'),
+    (error: unknown) =>
+      error instanceof SyntaxError &&
+      /not in the expected format/i.test(error.message) &&
+      !/JSON|token|position/i.test(error.message),
   )
 
   // C1 & C2: keyPoints included in prompt criteria, and token estimator triggers split above threshold

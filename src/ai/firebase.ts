@@ -12,6 +12,7 @@ import {
   estimateMarkingTokens,
   isCloudFormatError,
   ON_DEVICE_TOKEN_THRESHOLD,
+  parseModelJson,
   PracticeDraftSchema,
   repairDraft,
   RubricAuditSchema,
@@ -227,7 +228,7 @@ async function runAiJson(
           throw new Error('Unexpected inference source.')
         }
         return {
-          value: JSON.parse(result.response.text()) as unknown,
+          value: parseModelJson(result.response.text()),
           provenance: provenance(result.response.inferenceSource, start),
         }
       } catch (error) {
@@ -266,7 +267,7 @@ async function runAiJson(
     try {
       const result = await model.generateContent(parts)
       return {
-        value: JSON.parse(result.response.text()) as unknown,
+        value: parseModelJson(result.response.text()),
         provenance: provenance(result.response.inferenceSource, start),
       }
     } catch (error) {

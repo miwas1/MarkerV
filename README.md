@@ -33,7 +33,7 @@ Every AI mark suggestion is accepted only when its cited quote appears **verbati
 2. Click **Allow cloud AI** directly in the sample banner (or toggle it in **Settings**).
 3. Open **Script 001** and run **Suggest marks (Hybrid AI · sample)**, **Compare second opinion**, **Sample rubric → Audit rubric**, or **Sample class picture → Draft teaching summary** to see live `On this device` or `Cloud` provenance badges with latency.
 
-*(If you also deploy to Firebase Hosting alongside AI Studio, run `firebase deploy --only hosting,firestore:rules --project gen-lang-client-0502601746`.)*
+*(If you also deploy to Firebase Hosting alongside AI Studio, run `firebase deploy --only hosting,firestore:rules --project gen-lang-client-0769662723`.)*
 
 ## Run locally (clean clone)
 
@@ -57,7 +57,7 @@ Pure routing policy tests (`selectAiRoute` in `src/domain/aiRouting.ts`), eviden
 
 ## Connect Firebase AI Logic & Cloud Fallback
 
-The committed `firebase-applet-config.json` targets project `gen-lang-client-0502601746` with default cloud model **`gemini-3.5-flash-lite`**. To enable Cloud AI and hybrid fallback on a clean clone:
+The committed `firebase-applet-config.json` targets project `gen-lang-client-0769662723` with default cloud model **`gemini-3.5-flash-lite`**. To enable Cloud AI and hybrid fallback on a clean clone:
 
 1. **Register App Check (reCAPTCHA Enterprise):** Set `VITE_FIREBASE_APP_CHECK_SITE_KEY` in `.env.local` (copy from `.env.example`) or populate `recaptchaSiteKey` in `firebase-applet-config.json`. Keep Firebase AI Logic App Check enforcement enabled; the SDK uses `useLimitedUseAppCheckTokens: true` for cloud AI calls and initializes App Check on public `/submit/:linkId` pages.
 2. **Publish Remote Config:** In Firebase Console → **Remote Config**, publish Boolean parameter `allow_cloud_ai = true` (the bundled `remoteconfig.template.json` defaults to `false` as an institutional kill-switch). The client requires a fresh remote fetch—never a cached default.
@@ -66,15 +66,3 @@ The committed `firebase-applet-config.json` targets project `gen-lang-client-050
 5. **Local App Check debug token (dev only):** Set `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true` in Chrome DevTools Console on `localhost` before your first cloud call and register the printed token in Firebase Console → App Check. Never commit debug tokens.
 
 The two bundled fonts are self-hosted and their licences are under [public/licenses](public/licenses).
-
-## On-device Model Probe
-
-The [`probe/`](probe/) directory contains a standalone local benchmark page that tests Chrome's Prompt API directly (the same on-device engine Firebase AI Logic uses on the web) across startup latency, tokens/sec, JSON schema validity, marking agreement, quote accuracy, handwriting transcription, oral follow-ups, context limits, and thermal endurance.
-
-```bash
-node probe/server.mjs
-```
-
-1. In Chrome, open `chrome://flags`, enable **Gemma 4 for Built-in AI** and **Prompt API for Gemini Nano with Multimodal Input**, then relaunch Chrome.
-2. Open <http://localhost:5177>, choose **Quick run**, and click **Run tests**.
-3. Measurements are written locally to a `results/` folder (`*.json` + `runs.csv`) created automatically by the probe server. Open <http://localhost:5177/?mock=1> to inspect the probe UI without a local model.

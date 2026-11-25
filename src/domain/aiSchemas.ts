@@ -120,6 +120,18 @@ export const PracticeDraftSchema = z.object({
   practice: z.array(z.string().trim().min(1).transform((s) => s.slice(0, 200))).min(1),
 })
 
+/**
+ * Parses a model reply as JSON. A truncated or malformed reply still throws a `SyntaxError`
+ * (so format retries keep working), but with a message that is safe to show to a lecturer.
+ */
+export function parseModelJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    throw new SyntaxError('The AI reply was incomplete or not in the expected format. Try again or continue manually.')
+  }
+}
+
 export function isCloudFormatError(error: unknown): boolean {
   return (
     error instanceof z.ZodError ||
