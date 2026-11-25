@@ -1,0 +1,5 @@
+Project name: BIO101 · Cell Biology
+Description: Week 6 short-answer quiz on energy in cells.
+
+Rubric: rubric/rubric.txt
+Import via: Rubrics → Upload file (structured TXT)

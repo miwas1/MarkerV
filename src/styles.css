@@ -1713,3 +1713,22 @@ progress { display: block; inline-size: 100%; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Standalone text links are at least 24px tall, the WCAG 2.2 minimum target size. */
+.text-link, .project-manage-link, .lp-nav-link, .lp-inline-cta, .lp-closing-links a, .lp-footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* AI inspector */
+.inspector-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.inspector-stat { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.inspector-stat span { color: var(--muted); font-size: .75rem; font-weight: 600; line-height: 1.25; }
+.inspector-stat strong { font-size: 1.35rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: .875rem; font-variant-numeric: tabular-nums; }
+.data-table th, .data-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.data-table thead th { background: var(--paper); color: var(--muted); font-size: .75rem; font-weight: 650; }
+.data-table tbody th { font-weight: 600; }
+.data-table tbody tr:last-child > * { border-bottom: 0; }

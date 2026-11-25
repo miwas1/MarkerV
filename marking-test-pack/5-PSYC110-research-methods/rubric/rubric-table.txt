@@ -1,0 +1,8 @@
+Title: Correlation and causation
+Question: Explain the difference between correlation and causation using an example, and describe one research design that can test for causation.
+
+| Criterion | 3 marks | 2 marks | 1 mark | 0 marks |
+|---|---|---|---|---|
+| Distinction | Defines both clearly and states that correlation does not imply causation. | Defines both terms, but loosely. | Defines only one of the two terms. | Missing. |
+| Example | Gives an example and explains a plausible third variable or reverse causation. | Gives a valid correlation example without explaining a third variable. | Gives a vague example. | Missing. |
+| Research design | Describes a randomised controlled experiment: random assignment, manipulation of the independent variable and a control group. | Names an experiment with one key feature. | Names a design without detail. | Missing. |

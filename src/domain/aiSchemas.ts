@@ -120,6 +120,49 @@ export const PracticeDraftSchema = z.object({
   practice: z.array(z.string().trim().min(1).transform((s) => s.slice(0, 200))).min(1),
 })
 
+const MarkingBriefSchema = z.object({
+  briefs: z.array(
+    z.object({
+      criterion: z.number().int(),
+      keyPoints: z.string().trim().min(1).transform((text) => text.slice(0, MAX_KEY_POINTS)),
+    }),
+  ),
+})
+
+/**
+ * The only rubric fields sent when drafting a marking brief. It leaves out existing key points,
+ * practice questions and internal IDs, and it never includes student work.
+ */
+export function markingBriefPayload(rubric: Pick<Rubric, 'title' | 'question' | 'criteria'>) {
+  return {
+    title: rubric.title.trim().slice(0, 100),
+    question: rubric.question.trim().slice(0, 1000),
+    criteria: expandedCriteria(rubric)
+      .slice(0, MAX_CRITERIA)
+      .map((criterion, index) => ({
+        criterion: index + 1,
+        title: criterion.title.trim().slice(0, 90),
+        max: criterion.max,
+        levels: criterion.levels.map((level) => level.trim().slice(0, 600)),
+      })),
+  }
+}
+
+/**
+ * Key points per criterion, in rubric order. Throws when the draft does not cover every
+ * criterion exactly once.
+ */
+export function briefKeyPoints(raw: unknown, criteriaCount: number): string[] {
+  const { briefs } = MarkingBriefSchema.parse(raw)
+  const byCriterion = new Map(briefs.map((row) => [row.criterion, row.keyPoints]))
+  if (briefs.length !== criteriaCount || byCriterion.size !== criteriaCount) throw new Error('Invalid marking brief.')
+  return Array.from({ length: criteriaCount }, (_, index) => {
+    const text = byCriterion.get(index + 1)
+    if (!text) throw new Error('Invalid marking brief.')
+    return text
+  })
+}
+
 /**
  * Parses a model reply as JSON. A truncated or malformed reply still throws a `SyntaxError`
  * (so format retries keep working), but with a message that is safe to show to a lecturer.
@@ -137,7 +180,7 @@ export function isCloudFormatError(error: unknown): boolean {
     error instanceof z.ZodError ||
     error instanceof SyntaxError ||
     error instanceof DraftFormatError ||
-    (error instanceof Error && /^Invalid (teaching summary|comparison|practice draft)/.test(error.message))
+    (error instanceof Error && /^Invalid (teaching summary|comparison|practice draft|marking brief)/.test(error.message))
   )
 }
 

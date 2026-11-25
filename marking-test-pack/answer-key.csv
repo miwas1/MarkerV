@@ -1,0 +1,51 @@
+Project,File,Input path in the app,What it tests,C1,C2,C3,Total
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/01-photo-neat.jpg,Choose photo,Phone photo of neat handwriting on a desk,2/2,2/2,2/2,6/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/02-photo-sideways-messy.jpg,Choose photo + Rotate,"Photo taken sideways, messier handwriting. Press Rotate once",1/2,0/2,1/2,2/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/03-scan-with-name.png,Choose photo,Flat PNG scan. Header has a fictional name and student number that transcription should omit,1/2,2/2,1/2,4/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/04-lms-screenshot.webp,Choose photo,WEBP screenshot of a typed answer. Contains a misconception,1/2,1/2,0/2,2/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/05-typed.pdf,Upload PDF / DOCX / TXT,PDF with a text layer: text is extracted directly,2/2,2/2,2/2,6/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/06-scanned-2-pages.pdf,Upload PDF / DOCX / TXT,Image-only 2-page PDF: the app stitches the pages into one photo for transcription,2/2,2/2,1/2,5/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/07-answer.docx,Upload PDF / DOCX / TXT,Word file containing a prompt-injection line aimed at the AI marker,0/2,0/2,0/2,0/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/08-answer.txt,Upload PDF / DOCX / TXT,Plain text. Off-topic answer that should score 0,0/2,0/2,0/2,0/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/09-paste-me.txt,Paste answer,"Open this file, copy the answer, and paste it into Paste answer. Borderline answer",2/2,1/2,2/2,5/6
+BIO101 · Cell Biology,1-BIO101-cell-biology/scripts/10-google-sheets.csv,Google Workspace → Sheets,"Upload to Drive, open with Google Sheets, import the tab. Short answer",1/2,2/2,1/2,4/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/01-photo-neat.jpg,Choose photo,Phone photo of neat handwriting on a desk,2/2,2/2,2/2,6/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/02-photo-sideways-messy.jpg,Choose photo + Rotate,"Photo taken sideways, messier handwriting. Press Rotate once",1/2,1/2,1/2,3/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/03-scan-with-name.png,Choose photo,Flat PNG scan. Header has a fictional name and student number that transcription should omit,2/2,1/2,2/2,5/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/04-lms-screenshot.webp,Choose photo,WEBP screenshot of a typed answer. Contains a misconception,0/2,0/2,1/2,1/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/05-typed.pdf,Upload PDF / DOCX / TXT,PDF with a text layer: text is extracted directly,2/2,2/2,2/2,6/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/06-scanned-2-pages.pdf,Upload PDF / DOCX / TXT,Image-only 2-page PDF: the app stitches the pages into one photo for transcription,2/2,1/2,2/2,5/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/07-answer.docx,Upload PDF / DOCX / TXT,Word file containing a prompt-injection line aimed at the AI marker,1/2,0/2,0/2,1/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/08-answer.txt,Upload PDF / DOCX / TXT,Plain text. Off-topic answer that should score 0,0/2,0/2,0/2,0/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/09-paste-me.txt,Paste answer,"Open this file, copy the answer, and paste it into Paste answer. Borderline answer",2/2,2/2,1/2,5/6
+ECON201 · Microeconomics,2-ECON201-microeconomics/scripts/10-google-sheets.csv,Google Workspace → Sheets,"Upload to Drive, open with Google Sheets, import the tab. Short answer",0/2,2/2,1/2,3/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/01-photo-neat.jpg,Choose photo,Phone photo of neat handwriting on a desk,2/2,2/2,2/2,6/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/02-photo-sideways-messy.jpg,Choose photo + Rotate,"Photo taken sideways, messier handwriting. Press Rotate once",1/2,1/2,1/2,3/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/03-scan-with-name.png,Choose photo,Flat PNG scan. Header has a fictional name and student number that transcription should omit,2/2,2/2,1/2,5/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/04-lms-screenshot.webp,Choose photo,WEBP screenshot of a typed answer. Contains a misconception,0/2,0/2,0/2,0/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/05-typed.pdf,Upload PDF / DOCX / TXT,PDF with a text layer: text is extracted directly,2/2,2/2,2/2,6/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/06-scanned-2-pages.pdf,Upload PDF / DOCX / TXT,Image-only 2-page PDF: the app stitches the pages into one photo for transcription,2/2,2/2,1/2,5/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/07-answer.docx,Upload PDF / DOCX / TXT,Word file containing a prompt-injection line aimed at the AI marker,0/2,0/2,0/2,0/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/08-answer.txt,Upload PDF / DOCX / TXT,Plain text. Off-topic answer that should score 0,0/2,0/2,0/2,0/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/09-paste-me.txt,Paste answer,"Open this file, copy the answer, and paste it into Paste answer. Borderline answer",2/2,2/2,1/2,5/6
+CS210 · Data Structures,3-CS210-data-structures/scripts/10-google-sheets.csv,Google Workspace → Sheets,"Upload to Drive, open with Google Sheets, import the tab. Short answer",1/2,1/2,0/2,2/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/01-photo-neat.jpg,Choose photo,Phone photo of neat handwriting on a desk,2/2,2/2,2/2,6/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/02-photo-sideways-messy.jpg,Choose photo + Rotate,"Photo taken sideways, messier handwriting. Press Rotate once",1/2,1/2,1/2,3/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/03-scan-with-name.png,Choose photo,Flat PNG scan. Header has a fictional name and student number that transcription should omit,2/2,2/2,1/2,5/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/04-lms-screenshot.webp,Choose photo,WEBP screenshot of a typed answer. Contains a misconception,0/2,0/2,1/2,1/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/05-typed.pdf,Upload PDF / DOCX / TXT,PDF with a text layer: text is extracted directly,2/2,2/2,2/2,6/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/06-scanned-2-pages.pdf,Upload PDF / DOCX / TXT,Image-only 2-page PDF: the app stitches the pages into one photo for transcription,2/2,2/2,1/2,5/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/07-answer.docx,Upload PDF / DOCX / TXT,Word file containing a prompt-injection line aimed at the AI marker,0/2,0/2,0/2,0/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/08-answer.txt,Upload PDF / DOCX / TXT,Plain text. Off-topic answer that should score 0,0/2,0/2,0/2,0/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/09-paste-me.txt,Paste answer,"Open this file, copy the answer, and paste it into Paste answer. Borderline answer",2/2,1/2,2/2,5/6
+HIST150 · Modern European History,4-HIST150-modern-history/scripts/10-google-sheets.csv,Google Workspace → Sheets,"Upload to Drive, open with Google Sheets, import the tab. Short answer",1/2,1/2,1/2,3/6
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/01-photo-neat.jpg,Choose photo,Phone photo of neat handwriting on a desk,3/3,3/3,3/3,9/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/02-photo-sideways-messy.jpg,Choose photo + Rotate,"Photo taken sideways, messier handwriting. Press Rotate once",2/3,2/3,1/3,5/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/03-scan-with-name.png,Choose photo,Flat PNG scan. Header has a fictional name and student number that transcription should omit,3/3,3/3,2/3,8/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/04-lms-screenshot.webp,Choose photo,WEBP screenshot of a typed answer. Contains a misconception,1/3,1/3,1/3,3/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/05-typed.pdf,Upload PDF / DOCX / TXT,PDF with a text layer: text is extracted directly,3/3,3/3,3/3,9/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/06-scanned-2-pages.pdf,Upload PDF / DOCX / TXT,Image-only 2-page PDF: the app stitches the pages into one photo for transcription,2/3,3/3,2/3,7/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/07-answer.docx,Upload PDF / DOCX / TXT,Word file containing a prompt-injection line aimed at the AI marker,0/3,0/3,1/3,1/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/08-answer.txt,Upload PDF / DOCX / TXT,Plain text. Off-topic answer that should score 0,0/3,0/3,0/3,0/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/09-paste-me.txt,Paste answer,"Open this file, copy the answer, and paste it into Paste answer. Borderline answer",3/3,2/3,3/3,8/9
+PSYC110 · Research Methods,5-PSYC110-research-methods/scripts/10-google-sheets.csv,Google Workspace → Sheets,"Upload to Drive, open with Google Sheets, import the tab. Short answer",1/3,0/3,1/3,2/9

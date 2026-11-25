@@ -9,8 +9,10 @@ export type AiTask =
   | 'auditRubric'
   | 'teachingSummary'
   | 'compareSample'
+  | 'benchmark'
+  | 'draftMarkingBrief'
 
-export type AiRouteMode = 'ONLY_ON_DEVICE' | 'PREFER_ON_DEVICE' | 'ONLY_IN_CLOUD'
+export type AiRouteMode = 'ONLY_ON_DEVICE' | 'PREFER_ON_DEVICE' | 'ONLY_IN_CLOUD' | 'PREFER_IN_CLOUD'
 
 export type AiRouteInput = {
   task: AiTask
@@ -37,6 +39,8 @@ export type AiRouteDecision = {
   allowCloudFallback: boolean
   /** Whether a cloud call may retry if on-device execution throws or returns invalid JSON. */
   retryCloudOnDeviceError: boolean
+  /** Cloud-first tasks only: whether the on-device model may take over if the cloud request fails. */
+  allowDeviceFallback?: boolean
   /** Human-readable reason when canRun is false. */
   blockedReason?: string
 }
@@ -52,6 +56,13 @@ const CLOUD_ONLY_TASKS: ReadonlySet<AiTask> = new Set([
   'auditRubric',
   'teachingSummary',
   'compareSample',
+  // Cloud baseline for the benchmark. It accepts only the ID of a bundled fictional answer.
+  'benchmark',
+])
+
+/** Tasks that carry no student data and are better written by the larger cloud model. */
+const CLOUD_FIRST_TASKS: ReadonlySet<AiTask> = new Set([
+  'draftMarkingBrief',
 ])
 
 /**
@@ -66,6 +77,9 @@ const CLOUD_ONLY_TASKS: ReadonlySet<AiTask> = new Set([
  * 3. High-reasoning pedagogy tasks (rubric reliability audit, aggregate cohort teaching
  *    plans, fictional second-opinion comparison) use `ONLY_IN_CLOUD` behind explicit
  *    payload preview, App Check, and Remote Config.
+ * 4. The marking brief (key points drafted from the rubric alone, never from student work)
+ *    uses `PREFER_IN_CLOUD`: the cloud model writes it when the lecturer has opted in, and
+ *    the on-device model takes over when cloud AI is off, offline, or the request fails.
  */
 export function selectAiRoute(input: AiRouteInput): AiRouteDecision {
   const cloudReady = input.allowCloud && input.cloudConfigured && input.online
@@ -91,6 +105,26 @@ export function selectAiRoute(input: AiRouteInput): AiRouteDecision {
         : !input.cloudConfigured
           ? 'Firebase App Check is not configured for Cloud AI.'
           : 'Enable Cloud AI in Settings to run this cloud task.',
+    }
+  }
+
+  if (CLOUD_FIRST_TASKS.has(input.task)) {
+    const canRun = cloudReady || input.deviceAvailable
+    return {
+      mode: 'PREFER_IN_CLOUD',
+      canRun,
+      // Without cloud permission the request goes straight to the on-device model.
+      tryDeviceFirst: !cloudReady && input.deviceAvailable,
+      allowCloudFallback: cloudReady,
+      retryCloudOnDeviceError: false,
+      allowDeviceFallback: cloudReady && input.deviceAvailable,
+      blockedReason: canRun
+        ? undefined
+        : !input.cloudConfigured
+          ? 'Set up on-device AI in compatible desktop Chrome, or configure App Check for Cloud AI.'
+          : !input.allowCloud
+            ? 'Enable Cloud AI in Settings, or set up on-device AI in desktop Chrome.'
+            : 'Connect to the internet, or set up on-device AI in desktop Chrome.',
     }
   }
 

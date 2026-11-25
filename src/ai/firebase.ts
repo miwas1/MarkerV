@@ -4,13 +4,17 @@ import { getToken as getAppCheckToken, initializeAppCheck, ReCaptchaEnterprisePr
 import { fetchAndActivate, getRemoteConfig, getValue } from 'firebase/remote-config'
 import { z } from 'zod'
 import firebaseAppletConfig from '../../firebase-applet-config.json'
+import { recordAiCall, type AiCallSource } from '../domain/aiLog'
+import { runCloudFirst, runDeviceFirst, type AiAttempt } from '../domain/aiRun'
 import { selectAiRoute, type AiTask } from '../domain/aiRouting'
 import {
+  briefKeyPoints,
   buildMarkingPromptCriteria,
   describeCloudErrorMessage,
   DraftFormatError,
   estimateMarkingTokens,
   isCloudFormatError,
+  markingBriefPayload,
   ON_DEVICE_TOKEN_THRESHOLD,
   parseModelJson,
   PracticeDraftSchema,
@@ -26,6 +30,7 @@ import {
   isScore,
   MAX_ANSWER,
   MAX_CRITERIA,
+  MAX_KEY_POINTS,
   MAX_SCORE,
   validateSuggestions,
   type Aggregate as AggregateRow,
@@ -156,6 +161,30 @@ function describeCloudError(error: unknown, fallback: string): Error {
   return describeCloudErrorMessage(error, fallback, cloudModel)
 }
 
+const textBytes = (value: string) => new TextEncoder().encode(value).length
+const callSource = (value: Provenance): AiCallSource =>
+  value.source === 'device' || value.source === 'cloud' ? value.source : 'unknown'
+
+/** Sends one cloud-only request and records it in the session log shown in the AI inspector. */
+async function cloudGenerate(
+  model: ReturnType<typeof getGenerativeModel>,
+  task: AiTask,
+  fictional: boolean,
+  prompt: string,
+) {
+  const cloudBytes = textBytes(prompt)
+  const start = performance.now()
+  try {
+    const result = await model.generateContent(prompt)
+    const source = provenance(result.response.inferenceSource, start)
+    recordAiCall({ task, mode: 'ONLY_IN_CLOUD', source: callSource(source), ms: source.ms ?? 0, ok: true, cloudBytes, fictional })
+    return result
+  } catch (error) {
+    recordAiCall({ task, mode: 'ONLY_IN_CLOUD', source: 'cloud', ms: performance.now() - start, ok: false, cloudBytes, fictional })
+    throw error
+  }
+}
+
 async function buildParts(prompt: string, photo?: Blob): Promise<Part[]> {
   const parts: Part[] = [{ type: 'text', text: prompt }]
   if (photo) {
@@ -177,6 +206,25 @@ function deviceJob<T>(operation: () => Promise<T>): Promise<T> {
   return job
 }
 
+/** Reads one model reply into the shape the run logic in `src/domain/aiRun.ts` expects. */
+function toAttempt(result: { response: { text(): string; inferenceSource?: InferenceSource } }, started: number): AiAttempt {
+  const source = provenance(result.response.inferenceSource, started)
+  return { value: parseModelJson(result.response.text()), source: callSource(source), ms: source.ms ?? 0 }
+}
+
+/** Runs the on-device model on the isolated `device-only` app. It makes no network request. */
+async function deviceAttempt(content: string | Part[], schema: JsonSchema, wantsImage: boolean, active: Active): Promise<AiAttempt> {
+  const local = localModel(wantsImage, schema)
+  await local.initializeDeviceModel()
+  if (!active()) throw new Error('Generation cancelled.')
+  const started = performance.now()
+  const result = await local.generateContent(content)
+  if (result.response.inferenceSource === InferenceSource.IN_CLOUD) {
+    throw new Error('Unexpected inference source.')
+  }
+  return toAttempt(result, started)
+}
+
 /**
  * Single policy-enforced JSON inference runner routed through `selectAiRoute`.
  *
@@ -184,6 +232,9 @@ function deviceJob<T>(operation: () => Promise<T>): Promise<T> {
  *   `route.tryDeviceFirst` is true — making zero Remote Config or App Check calls.
  * - Falls back (or retries once on local error) to Cloud Gemini only when
  *   `selectAiRoute` authorizes cloud execution for the given `(task, isSample)`.
+ *
+ * The order of attempts lives in `runDeviceFirst` (`src/domain/aiRun.ts`), which is tested
+ * with fake models.
  */
 async function runAiJson(
   task: AiTask,
@@ -215,64 +266,87 @@ async function runAiJson(
     const parts = await buildParts(prompt, photo)
     if (!active()) throw new Error('Generation cancelled.')
 
-    let localFailure: unknown = undefined
-
-    if (route.tryDeviceFirst) {
-      const local = localModel(wantsImage, schema)
-      try {
-        await local.initializeDeviceModel()
-        if (!active()) throw new Error('Generation cancelled.')
-        const start = performance.now()
-        const result = await local.generateContent(parts)
-        if (result.response.inferenceSource === InferenceSource.IN_CLOUD) {
-          throw new Error('Unexpected inference source.')
-        }
-        return {
-          value: parseModelJson(result.response.text()),
-          provenance: provenance(result.response.inferenceSource, start),
-        }
-      } catch (error) {
-        if (!active()) throw new Error('Generation cancelled.')
-        if (!route.retryCloudOnDeviceError) {
-          if (error instanceof SyntaxError) throw error
-          throw new Error('On-device AI could not complete this request. Try again or continue manually.')
-        }
-        localFailure = error
-      }
-    }
-
-    if (!route.allowCloudFallback) {
-      throw new Error(route.blockedReason ?? 'Cloud AI is not permitted for this request.')
-    }
-
-    const instance = await requireCloud(active)
-    if (!active()) throw new Error('Generation cancelled.')
-
-    // If on-device was unavailable before the call, use PREFER_ON_DEVICE (which delegates cleanly to cloud);
-    // if on-device threw or returned malformed JSON, explicitly retry once in cloud via ONLY_IN_CLOUD.
-    const model = getGenerativeModel(cloudAi(instance), {
-      mode: localFailure || route.mode === 'ONLY_IN_CLOUD'
-        ? InferenceMode.ONLY_IN_CLOUD
-        : InferenceMode.PREFER_ON_DEVICE,
-      inCloudParams: {
-        model: cloudModel,
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseJsonSchema: options?.cloudSchema ?? schema,
-        },
+    let instance: ReturnType<typeof getFirebaseApp> | undefined
+    const result = await runDeviceFirst({
+      task,
+      route,
+      fictional: isSample,
+      active,
+      cloudBytes: textBytes(prompt) + (photo?.size ?? 0),
+      device: () => deviceAttempt(parts, schema, wantsImage, active),
+      cloudPreflight: async () => { instance = await requireCloud(active) },
+      cloud: async (afterDeviceError) => {
+        // If on-device was unavailable before the call, use PREFER_ON_DEVICE (which delegates cleanly to cloud);
+        // if on-device threw or returned malformed JSON, explicitly retry once in cloud via ONLY_IN_CLOUD.
+        const model = getGenerativeModel(cloudAi(instance!), {
+          mode: afterDeviceError || route.mode === 'ONLY_IN_CLOUD'
+            ? InferenceMode.ONLY_IN_CLOUD
+            : InferenceMode.PREFER_ON_DEVICE,
+          inCloudParams: {
+            model: cloudModel,
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseJsonSchema: options?.cloudSchema ?? schema,
+            },
+          },
+        })
+        const started = performance.now()
+        return toAttempt(await model.generateContent(parts), started)
       },
+      cloudError: (error) => describeCloudError(error, 'Hybrid AI could not complete this request. Try again or continue manually.'),
+      record: recordAiCall,
     })
+    return { value: result.value, provenance: { source: result.source, ms: result.ms } satisfies Provenance }
+  })
+}
 
-    const start = performance.now()
-    try {
-      const result = await model.generateContent(parts)
-      return {
-        value: parseModelJson(result.response.text()),
-        provenance: provenance(result.response.inferenceSource, start),
-      }
-    } catch (error) {
-      if (error instanceof SyntaxError) throw error
-      throw describeCloudError(error, 'Hybrid AI could not complete this request. Try again or continue manually.')
+/**
+ * Cloud-first JSON runner (`PREFER_IN_CLOUD`) for tasks that carry no student data and are
+ * better written by the larger model. The cloud runs only with the lecturer's opt-in, App Check
+ * and a fresh Remote Config policy. When cloud AI is off or offline, or the cloud request
+ * fails, the on-device model takes over if it is ready (`runCloudFirst` in `src/domain/aiRun.ts`).
+ */
+async function runCloudFirstJson(
+  task: AiTask,
+  prompt: string,
+  schema: JsonSchema,
+  cloudSchema: JsonSchema,
+  active: Active,
+) {
+  return deviceJob(async () => {
+    if (!active()) throw new Error('Generation cancelled.')
+    const deviceAvailable = configured && (await checkDevice()) === 'available'
+    const allowCloud = (await readSpace('private')).allowCloud
+    const route = selectAiRoute({ task, isSample: false, deviceAvailable, allowCloud, cloudConfigured, online: navigator.onLine })
+
+    let instance: ReturnType<typeof getFirebaseApp> | undefined
+    const result = await runCloudFirst({
+      task,
+      route,
+      fictional: false,
+      active,
+      cloudBytes: textBytes(prompt),
+      device: () => deviceAttempt(prompt, schema, false, active),
+      cloudPreflight: async () => { instance = await requireCloud(active) },
+      cloud: async () => {
+        const model = getGenerativeModel(cloudAi(instance!), {
+          mode: InferenceMode.PREFER_IN_CLOUD,
+          inCloudParams: {
+            model: cloudModel,
+            generationConfig: { responseMimeType: 'application/json', responseJsonSchema: cloudSchema },
+          },
+          onDeviceParams: { createOptions: deviceOptions(false), promptOptions: { responseConstraint: schema } },
+        })
+        const started = performance.now()
+        return toAttempt(await model.generateContent(prompt), started)
+      },
+      cloudError: (error) => describeCloudError(error, 'Cloud AI could not complete this request. Try again or continue manually.'),
+      record: recordAiCall,
+    })
+    return {
+      value: result.value,
+      provenance: { source: result.source, ms: result.ms } satisfies Provenance,
+      cloudBytes: result.cloudBytes,
     }
   })
 }
@@ -400,6 +474,65 @@ export async function draftPracticeQuestions(
   throw new Error('Could not draft practice questions. Try again or write them manually.')
 }
 
+const briefSchema = object({ briefs: array(object({ criterion: int, keyPoints: str })) })
+
+/**
+ * Drafts key points for the marker from the rubric alone. The cloud model writes them when the
+ * lecturer allows cloud AI; otherwise, or if the cloud request fails, the on-device model does.
+ * Student work is never part of the request, and nothing is saved until the lecturer reviews
+ * the rubric.
+ */
+export async function draftMarkingBrief(rubric: Pick<Rubric, 'title' | 'question' | 'criteria'>, active: Active) {
+  const payload = markingBriefPayload(rubric)
+  const count = payload.criteria.length
+  const cloudSchema: JsonSchema = {
+    type: 'object',
+    required: ['briefs'],
+    properties: {
+      briefs: {
+        type: 'array',
+        minItems: count,
+        maxItems: count,
+        items: {
+          type: 'object',
+          required: ['criterion', 'keyPoints'],
+          properties: {
+            criterion: { type: 'integer', minimum: 1, maximum: count },
+            keyPoints: { type: 'string', minLength: 20, maxLength: MAX_KEY_POINTS },
+          },
+        },
+      },
+    },
+  }
+  const instructions =
+    rules +
+    ' Write a marking brief for a small on-device model that will apply this rubric to student answers.' +
+    ' For each criterion number, write key points of at most 450 characters: the specific facts, terms or steps that earn each mark,' +
+    ' wording that should be accepted as equivalent, and one common mistake that should not earn marks.' +
+    ' Write plain statements, not a model answer.' +
+    ' Return { "briefs": [{ "criterion": 1, "keyPoints": "..." }] } with exactly one entry per criterion number.'
+
+  let hint = ''
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await runCloudFirstJson('draftMarkingBrief', instructions + hint + data(payload), briefSchema, cloudSchema, active)
+      const keyPoints = briefKeyPoints(result.value, count)
+      return {
+        keyPoints: Object.fromEntries(rubric.criteria.slice(0, count).map((criterion, index) => [criterion.id, keyPoints[index]])),
+        provenance: result.provenance,
+        cloudBytes: result.cloudBytes,
+      }
+    } catch (error) {
+      if (!isCloudFormatError(error)) throw error
+      if (attempt === 1) {
+        throw new Error('Could not draft key points in the expected format. Try again or write them manually.')
+      }
+      hint = ` Return exactly ${count} entries, numbered 1 to ${count}.`
+    }
+  }
+  throw new Error('Could not draft key points. Try again or write them manually.')
+}
+
 export type StudentTaskOptions = {
   /** Must remain false for real private student work. Only enabled inside the fictional /sample workspace. */
   allowCloudFallback?: boolean
@@ -431,6 +564,24 @@ export async function readRubricPhoto(photo: Blob, active: Active) {
   return { text: parsed.data.text, provenance: result.provenance }
 }
 
+const markSchema = object({
+  marks: array(object({ id: str, score: { type: ['integer', 'null'] }, reason: str, quote: str })),
+})
+
+/** The whole-rubric marking prompt, shared by on-device marking and the cloud benchmark baseline. */
+function markPrompt(rubric: Pick<Rubric, 'question' | 'criteria'>, transcript: string) {
+  const criteria = buildMarkingPromptCriteria(rubric)
+  const keyPointRule = criteria.some((criterion) => Boolean(criterion.keyPoints))
+    ? ' Use key points to judge; quote only from the transcript.'
+    : ''
+  return (
+    rules +
+    ' Apply the rubric once per criterion. Use the exact criterion ID, integer score or null if unsure, a brief reason, and an exact contiguous quote from the transcript. Use an empty quote for absent evidence. Never invent a quote.' +
+    keyPointRule +
+    data({ question: rubric.question, criteria, transcript })
+  )
+}
+
 export async function mark(
   rubric: Rubric,
   transcript: string,
@@ -442,9 +593,6 @@ export async function mark(
   const promptCriteria = buildMarkingPromptCriteria(rubric)
   const hasKeyPoints = promptCriteria.some((c) => Boolean(c.keyPoints))
   const keyPointRule = hasKeyPoints ? ' Use key points to judge; quote only from the transcript.' : ''
-  const markSchema = object({
-    marks: array(object({ id: str, score: { type: ['integer', 'null'] }, reason: str, quote: str })),
-  })
   const estimatedTokens = estimateMarkingTokens(rubric, transcript)
 
   if (estimatedTokens > ON_DEVICE_TOKEN_THRESHOLD && promptCriteria.length > 1) {
@@ -486,16 +634,7 @@ export async function mark(
     }
   }
 
-  const result = await runAiJson(
-    'mark',
-    rules +
-      ' Apply the rubric once per criterion. Use the exact criterion ID, integer score or null if unsure, a brief reason, and an exact contiguous quote from the transcript. Use an empty quote for absent evidence. Never invent a quote.' +
-      keyPointRule +
-      data({ question: rubric.question, criteria: promptCriteria, transcript }),
-    markSchema,
-    active,
-    { isSample },
-  )
+  const result = await runAiJson('mark', markPrompt(rubric, transcript), markSchema, active, { isSample })
   const parsed = z.object({ marks: z.unknown() }).safeParse(result.value)
   if (!parsed.success) throw new Error('The marking response was incomplete. Try again or mark manually.')
   try {
@@ -667,7 +806,10 @@ export async function teachingSummary(rows: AggregateRow[], context: TeachingCon
   for (let attempt = 0; attempt < 2; attempt++) {
     const start = performance.now()
     try {
-      const result = await model.generateContent(
+      const result = await cloudGenerate(
+        model,
+        'teachingSummary',
+        false,
         rules +
           ' Rank up to three eligible criterion ordinals by share below full marks. For each, write a concise likely conceptual misconception, a concrete 5–10 minute re-teaching activity tailored to the assessment topic, and one check-for-understanding question to ask in class. Return JSON with priorities only.' +
           hint +
@@ -744,7 +886,10 @@ export async function auditRubric(rubric: Pick<Rubric, 'title' | 'question' | 'c
   for (let attempt = 0; attempt < 2; attempt++) {
     const start = performance.now()
     try {
-      const result = await model.generateContent(
+      const result = await cloudGenerate(
+        model,
+        'auditRubric',
+        false,
         rules +
           ' Audit this university assessment rubric for marking reliability. Check for ambiguous adjectives, overlapping score bands, missing intermediate criteria, or misalignment with the question. Return a concise overall summary and up to 6 specific actionable issues. For each issue, name the exact criterionTitle (matching one of the criterion titles verbatim, or "Question" for the question), set field to "question", "title", or "level", set level to the integer score (0..max) when field is "level" or null otherwise, explain the issue briefly, and give a complete replacement text for that field.' +
           hint +
@@ -776,7 +921,7 @@ export async function compareSample(fixtureId: string, active: Active) {
   if (!active()) throw new Error('Cloud AI is switched off.')
   const start = performance.now()
   try {
-    const result = await model.generateContent(rules + ' As an independent second reader, suggest one integer mark and brief reason per criterion for this fictional answer.' +
+    const result = await cloudGenerate(model, 'compareSample', true, rules + ' As an independent second reader, suggest one integer mark and brief reason per criterion for this fictional answer.' +
       data({ question: sampleRubric.question, rubric: sampleRubric.criteria, answer: sampleTranscript }))
     const parsed = z.object({ marks: z.array(z.object({ id: z.string(), score: z.number().int(), reason: z.string().trim().min(1).transform((s) => s.slice(0, 360)) })) })
       .parse(JSON.parse(result.response.text()))
@@ -785,6 +930,36 @@ export async function compareSample(fixtureId: string, active: Active) {
       return marks.length !== 1 || !isScore(marks[0].score, criterion.max)
     })) throw new Error('Invalid comparison.')
     return { ...parsed, provenance: provenance(result.response.inferenceSource, start) }
+  } catch (error) {
+    throw describeCloudError(error, 'The cloud request did not complete. Try again.')
+  }
+}
+
+/**
+ * Cloud baseline for the benchmark in the AI inspector. It accepts only the ID of a bundled
+ * fictional answer, so text a lecturer types or imports can never reach the cloud model here.
+ */
+export async function benchmarkCloudMark(caseId: string, active: Active) {
+  const { benchmarkCase } = await import('../benchmark/pack')
+  const item = benchmarkCase(caseId)
+  if (!item) throw new Error('This benchmark script is not part of the bundled fictional pack.')
+  await assertCloudRoute('benchmark', true)
+  const instance = await requireCloud(active)
+  const model = getGenerativeModel(cloudAi(instance), {
+    mode: InferenceMode.ONLY_IN_CLOUD,
+    inCloudParams: { model: cloudModel, generationConfig: { responseMimeType: 'application/json', responseJsonSchema: markSchema } },
+  })
+  if (!active()) throw new Error('Cloud AI is switched off.')
+  const prompt = markPrompt(item.rubric, item.transcript)
+  const start = performance.now()
+  try {
+    const result = await cloudGenerate(model, 'benchmark', true, prompt)
+    const parsed = z.object({ marks: z.unknown() }).parse(parseModelJson(result.response.text()))
+    return {
+      suggestions: validateSuggestions(parsed.marks, item.rubric, item.transcript),
+      provenance: provenance(result.response.inferenceSource, start),
+      cloudBytes: textBytes(prompt),
+    }
   } catch (error) {
     throw describeCloudError(error, 'The cloud request did not complete. Try again.')
   }

@@ -104,7 +104,7 @@ export function ClassPicture({ workspace, base }: { workspace: Workspace; base: 
       </section>
     </>}
     {preview && <Modal title="Review cloud payload" onClose={() => setPreview(false)}>
-      <p><Info size={16} className="inline-icon" /> Firebase receives these aggregate counts and rubric criteria. Student names, answers, and individual marks stay in this browser.</p>
+      <p><Info size={16} className="inline-icon" /> Firebase receives these aggregate counts and rubric criteria. Student names, answers and individual marks are not part of this request.</p>
       <pre className="payload">{JSON.stringify(payloadPreview, null, 2)}</pre>
       <button className="button primary" disabled={!workspace.allowCloud || !eligible.length} onClick={() => {
         setPreview(false)

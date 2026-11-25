@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, ChevronRight, ClipboardList, Files, FlaskConical, FolderKanban, Link2, LockKeyhole, LogIn, Settings2, ShieldCheck, UserCircle2, WifiOff } from 'lucide-react'
+import { Activity, BarChart3, BookOpen, ChevronRight, ClipboardList, Files, FlaskConical, FolderKanban, Link2, LockKeyhole, LogIn, Settings2, ShieldCheck, UserCircle2, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { checkDevice, configured, type DeviceStatus } from './ai/firebase'
@@ -24,6 +24,7 @@ import { useWorkspace } from './storage/useWorkspace'
 import { Loading, Notice } from './ui'
 
 const Sample = lazy(() => import('./demo/Sample'))
+const Inspector = lazy(() => import('./features/Inspector'))
 const mobileLinks = [
   { to: '/workspace', label: 'Scripts', icon: Files, end: true },
   { to: '/workspace/links', label: 'Links', icon: Link2 },
@@ -38,6 +39,7 @@ const sideLinks = [
   { to: '/workspace/rubric', label: 'Rubrics', icon: ClipboardList },
   { to: '/workspace/class', label: 'Class picture', icon: BarChart3 },
   { to: '/practice', label: 'Practice', icon: BookOpen },
+  { to: '/inspector', label: 'AI inspector', icon: Activity },
   { to: '/settings', label: 'Settings', icon: Settings2 },
 ]
 
@@ -80,6 +82,15 @@ export function App() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [location.pathname])
+
+  const pageName = location.pathname === '/' ? ''
+    : location.pathname.startsWith('/submit/') ? 'Submit your work'
+      : inSample ? 'Sample workspace'
+        : inAuth ? 'Account'
+          : active?.label ?? 'Scripts'
+  useEffect(() => {
+    document.title = pageName ? pageName + ' · Marking Assistant' : 'Marking Assistant'
+  }, [pageName])
 
   useEffect(() => {
     const viewport = window.visualViewport
@@ -125,7 +136,7 @@ export function App() {
           <span className="truncate-label">{user ? (user.displayName || user.email || 'Account') : 'Sign in'}</span>
         </NavLink>
         <NavLink to="/sample" className="nav-link sample-link"><FlaskConical size={18} />Try sample</NavLink>
-        <div className="privacy-card"><span><ShieldCheck size={18} />Private workspace</span><p>Scripts and marks are saved in this browser.</p></div>
+        <div className="privacy-card"><span><ShieldCheck size={18} />Private workspace</span><p>Your workspace is saved in this browser. Submission links keep student answers in your Firestore dropbox.</p></div>
       </div>
     </aside>
     <div className="app-body">
@@ -147,6 +158,7 @@ export function App() {
           </Link>
         </div>
       </header>
+      <p className="visually-hidden" role="status" aria-live="polite">{pageName} page</p>
       <main id="content" className="content">
         {workspace && inWorkspace && location.pathname !== '/workspace/projects' && (
           <ProjectBar workspace={workspace} commit={commit} />
@@ -179,6 +191,9 @@ export function App() {
                   <Route path="/workspace/scripts/:id/feedback" element={<FeedbackRoute workspace={workspace} commit={commit} deviceReady={deviceReady} base="/workspace" />} />
                   <Route path="/workspace/class" element={<ClassPicture workspace={workspace} base="/workspace" />} />
                   <Route path="/practice" element={<Practice deviceReady={deviceReady} allowCloud={workspace.allowCloud} />} />
+                  <Route path="/inspector" element={<Suspense fallback={<Loading>Opening the inspector…</Loading>}>
+                    <Inspector deviceReady={deviceReady} allowCloud={workspace.allowCloud} online={online} />
+                  </Suspense>} />
                   <Route path="/settings" element={<Settings workspace={workspace} commit={commit} text={text} image={image} refresh={refresh} />} />
                   <Route path="*" element={<Navigate to="/workspace" replace />} />
                 </Routes>

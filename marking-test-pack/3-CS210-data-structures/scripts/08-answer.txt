@@ -1,0 +1,1 @@
+A binary search tree keeps smaller keys on the left and larger keys on the right. Searching a balanced tree is O(log n). An unbalanced tree can become O(n).

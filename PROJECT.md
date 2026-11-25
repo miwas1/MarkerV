@@ -2,9 +2,11 @@
 
 *Working name. Entry for the #BuildHybridAI 2026 hackathon. Written 23 November 2026.*
 
+> **Update, 25 November 2026.** This is the original brief, kept for context. Two things changed in the build. Student work is still never sent to cloud AI, but the optional submission links store the answers students send in the lecturer's own Firestore dropbox, so not everything stays on one computer. And the workspace is saved in the browser (IndexedDB), not in Firestore. The [README](README.md) describes what shipped.
+
 ## In one paragraph
 
-Marking Assistant helps university lecturers mark students' work faster and more fairly, without sending the students' work to the internet. The lecturer photographs or pastes a student's answer, and the app suggests a mark for each part of the marking scheme. Each suggested mark comes with the exact words from the answer that earned it, and the lecturer accepts or changes every mark. Once a script is marked, the app writes short spoken follow-up questions (an oral exam) to check the student really understands their own answer. It also gives students private practice on the parts they lost marks on. The AI that reads student work runs on the lecturer's own computer, so the work stays private. A more powerful AI on Google's servers is used only for tasks that involve no names or student work.
+Marking Assistant helps university lecturers mark students' work faster and more fairly, without sending the students' work to the internet. The lecturer photographs or pastes a student's answer, and the app suggests a mark for each part of the marking scheme. Each suggested mark comes with the exact words from the answer that earned it, and the lecturer accepts or changes every mark. Once a script is marked, the app writes short spoken follow-up questions (an oral exam) to check the student really understands their own answer. It also gives students private practice on the parts they lost marks on. The AI that reads student work runs on the lecturer's own computer, so student work is never sent to cloud AI. A more powerful AI on Google's servers is used only for tasks that involve no names or student work.
 
 ---
 
@@ -81,11 +83,11 @@ Marking is one of the heaviest and least loved parts of a lecturer's job, and st
 
 ## 5. Where each part runs, and why
 
-The rule is simple: **anything containing a student's work or name stays on the lecturer's computer.**
+The rule is simple: **anything containing a student's work or name is read and marked on the lecturer's computer, and is never sent to cloud AI.**
 
 | Task | Runs on | Why |
 |---|---|---|
-| Reading and marking a student's answer | **Device only** | Student work never leaves the computer, which meets university privacy rules |
+| Reading and marking a student's answer | **Device only** | Student work is never sent to cloud AI, which is what the university rules restrict |
 | Reading handwriting from a photo | **Device only** | Same reason |
 | Hiding names | **Device only** | Same reason |
 | Drafting feedback for a student | **Device only** | Contains the student's work |
@@ -108,7 +110,7 @@ This split is the heart of the entry. The hackathon's own FAQ gives this exact p
 
 | Feature | Problem it solves |
 |---|---|
-| Student work stays on the lecturer's computer | Universities forbid uploading student work to AI tools |
+| Student work is marked on the lecturer's computer and never sent to cloud AI | Universities forbid uploading student work to AI tools |
 | Marking scheme builder | Students find marking criteria unclear |
 | Handwritten script reader | Universities are returning to handwritten exams |
 | Suggested marks with quoted evidence | Markers form early opinions; quoted evidence keeps marks tied to what was actually written |
@@ -160,8 +162,8 @@ Seven days is short, so the build is split into three tiers.
 | Platform | Web app for **Chrome on desktop** (the on-device model is available there), which also opens on phones and other browsers using the cloud model |
 | AI | **Firebase AI Logic** hybrid SDK: **Gemini Nano 4** on the device, a Gemini cloud model (default `gemini-3.5-flash-lite`) as the fallback |
 | Security | **Firebase App Check** (required by the hackathon) |
-| Sign-in | **Firebase Authentication** (lecturer and student accounts) |
-| Data | **Firestore** for marking schemes, anonymised marks and class results; never answer text |
+| Sign-in | **Firebase Authentication** (lecturer email and password, needed only for submission links; students do not sign in) |
+| Data | **IndexedDB** in the browser for the workspace. **Firestore** only for optional submission links, which hold the answers students send until the lecturer deletes them |
 | Settings | **Firebase Remote Config** for the "never use the cloud" switch |
 | Hosting | **Firebase Hosting** for the public demo link |
 | Licence | Apache 2.0 open-source licence |
@@ -213,7 +215,7 @@ The hackathon rules don't require a new kind of product. What counts is a good u
 
 | Risk | How we handle it |
 |---|---|
-| **The on-device model is not yet running on our laptop.** Chrome reports it "unavailable", so we can't yet demo on-device marking. | First task: try the Chrome settings, or Chrome Canary, and check Chrome's diagnostics page. If it still won't run, borrow a newer laptop or a supported Android phone for the video. |
+| **The on-device model was not running on our laptop at first.** | Resolved on 25 November: it runs in Chrome 157 on the development laptop. |
 | Reading real handwriting may be poor | Test on real photos early. If needed, the demo uses neat handwriting and typed answers, and the app always lets the lecturer correct what it read. |
 | AI marks could be wrong or biased | The app only suggests; the lecturer decides every mark, and every suggestion shows its evidence |
 | Some universities ban AI in marking entirely | Present it as a marking aid with the lecturer in control, plus the "never use the cloud" switch |
@@ -253,8 +255,8 @@ The hackathon rules don't require a new kind of product. What counts is a good u
 ## 15. Where we are now
 
 - The idea, features and plan above are settled.
-- A test page that measures what the on-device model can do on this laptop is built in [probe/](probe/). It has been checked with a fake model, but **the real model is not running in Chrome on this laptop yet**, so there are no real measurements.
-- Next step: get the on-device model working, then run the test page, then start the app.
+- On-device marking runs on the development laptop. A 10-script benchmark run on 25 November completed entirely on the device, with nothing sent to the cloud.
+- Next step: run the cloud and cloud-brief benchmarks in the app's AI inspector and publish the comparison.
 
 ---
 

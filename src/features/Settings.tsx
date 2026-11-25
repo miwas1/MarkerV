@@ -1,4 +1,4 @@
-import { Cloud, HardDrive, Layers, LogIn, LogOut, ShieldCheck, Trash2, UserCircle2 } from 'lucide-react'
+import { Activity, Cloud, HardDrive, Layers, LogIn, LogOut, ShieldCheck, Trash2, UserCircle2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cloudConfigured, cloudModel, configured, firebaseProjectId, setupDevice, type DeviceStatus } from '../ai/firebase'
@@ -80,7 +80,7 @@ export function Settings({ workspace, commit, text, image, refresh }: {
     </section>
     <section className="panel form-panel">
       <div className="section-heading"><h2><Cloud size={19} />Cloud AI</h2></div>
-      <p>Enables cloud teaching plans, rubric quality audits, hybrid fallback for rubric authoring, and end-to-end hybrid AI on the fictional sample workspace. Real private student scripts, marks, and real practice replies never go to cloud AI.</p>
+      <p>Enables cloud teaching plans, rubric quality audits, cloud-written key points for the marker, hybrid fallback for rubric authoring, and end-to-end hybrid AI on the fictional sample workspace. Real private student scripts, marks, and real practice replies never go to cloud AI.</p>
       <label className="switch-row"><input type="checkbox" checked={workspace.allowCloud} disabled={busy || (!cloudConfigured && !workspace.allowCloud)}
         onChange={(event) => {
           const allow = event.target.checked
@@ -110,6 +110,13 @@ export function Settings({ workspace, commit, text, image, refresh }: {
         </div>
         <div className="routing-row">
           <div>
+            <strong>Marker key points</strong>
+            <p>Cloud Gemini drafts key points from the rubric alone, so the on-device marker knows what to look for. On-device AI takes over when cloud AI is off, offline or fails.</p>
+          </div>
+          <span className="badge neutral">PREFER_IN_CLOUD</span>
+        </div>
+        <div className="routing-row">
+          <div>
             <strong>Class plans, rubric audit &amp; second opinion</strong>
             <p>Runs in the cloud with App Check (limited-use tokens), Remote Config policy enforcement, and an exact JSON payload preview before sending.</p>
           </div>
@@ -117,15 +124,16 @@ export function Settings({ workspace, commit, text, image, refresh }: {
         </div>
       </div>
       <p className="muted">Cloud model: <code>{cloudModel}</code>{firebaseProjectId ? <> · Project: <code>{firebaseProjectId}</code></> : null}</p>
+      <Link className="button secondary" to="/inspector"><Activity size={16} />Open AI inspector</Link>
     </section>
     <section className="panel form-panel">
       <div className="section-heading"><h2><ShieldCheck size={19} />Local data &amp; optional dropbox</h2></div>
-      <p>Private workspaces are saved locally in this browser profile (IndexedDB). Optional student submission links store incoming student answers in an isolated, lecturer-owned Firestore dropbox until you import or delete them.</p>
+      <p>Your workspace is saved locally in this browser profile (IndexedDB). Optional submission links work differently: answers students send through a link are stored online in your own Firestore dropbox, with any suggested marks you save on them, until you delete them. Importing a submission copies it into this browser and leaves the original in the dropbox. Nothing in the dropbox is sent to cloud AI.</p>
       <button className="button secondary" disabled={busy || !(workspace.scripts.length || workspace.rubrics.length)} onClick={() => setConfirm(true)}><Trash2 size={17} />Clear workspace data</button>
     </section>
     {error && <Notice error>{error}</Notice>}
     {confirm && <Modal title="Clear workspace data?" onClose={() => setConfirm(false)}>
-      <p>All private scripts, rubrics, marks and feedback in this browser will be deleted. Files you exported stay where you saved them.</p>
+      <p>All private scripts, rubrics, marks and feedback in this browser will be deleted. Files you exported stay where you saved them, and submissions in your Firestore dropbox are not affected.</p>
       {error && <Notice error>{error}</Notice>}
       <button className="button destructive" disabled={busy} onClick={() => { void run(async () => {
         await commit(() => newWorkspace())

@@ -22,6 +22,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   auditRubric,
   canRunAi,
+  draftMarkingBrief,
   draftPracticeQuestions,
   draftRubric,
   readRubricPhoto,
@@ -29,7 +30,7 @@ import {
   type RubricAuditResult,
 } from '../ai/firebase'
 import { CameraModal } from '../components/CameraModal'
-import { estimateRubricTokens, ON_DEVICE_TOKEN_THRESHOLD } from '../domain/aiSchemas'
+import { estimateRubricTokens, markingBriefPayload, ON_DEVICE_TOKEN_THRESHOLD } from '../domain/aiSchemas'
 import { detectFileKind, DOCUMENT_ACCEPT, extractDocument, parseRubricText, type ParsedRubricDraft } from '../domain/document'
 import { noCrop, preparePhotoWithMetrics } from '../domain/photo'
 import {
@@ -345,6 +346,7 @@ function RubricEditor({ original, initialFile, workspace, commit, deviceReady, i
   const [pendingDraft, setPendingDraft] = useState<{ draft: ParsedRubricDraft; summary: string }>()
   const [pendingAiDraft, setPendingAiDraft] = useState(false)
   const [auditPreview, setAuditPreview] = useState(false)
+  const [briefPreview, setBriefPreview] = useState(false)
   const [audit, setAudit] = useState<RubricAuditResult>()
   const [appliedIssues, setAppliedIssues] = useState<Record<number, boolean>>({})
   const { run, setError, error, busy, cancel } = useAction()
@@ -365,6 +367,9 @@ function RubricEditor({ original, initialFile, workspace, commit, deviceReady, i
     rubric.question.trim() &&
     rubric.criteria.some((criterion) => criterion.title.trim() && criterion.levels[0]?.trim() && criterion.levels[criterion.max]?.trim()),
   )
+  // Key points are drafted cloud-first from the rubric alone; the on-device model takes over when cloud AI is off.
+  const briefReady = canRunAi('draftMarkingBrief', { deviceAvailable: deviceReady, allowCloud: workspace.allowCloud })
+  const missingKeyPointsCount = rubric.criteria.filter((c) => !(c.keyPoints ?? '').trim()).length
   const missingPracticeCount = rubric.criteria.filter((c) => !c.practice.trim()).length
   const hasNamedCriteria = rubric.criteria.some((c) => c.title.trim().length > 0)
   const estimatedTokens = estimateRubricTokens(rubric)
@@ -545,6 +550,24 @@ function RubricEditor({ original, initialFile, workspace, commit, deviceReady, i
       }))
       setSource(result.provenance)
       setImportNotice('Drafted missing practice questions. Review them before saving.')
+    })
+  }
+
+  function runBriefDraft() {
+    setBriefPreview(false)
+    void run(async (active) => {
+      const result = await draftMarkingBrief(rubric, active)
+      if (!active()) return
+      setRubric((current) => ({
+        ...current,
+        criteria: current.criteria.map((criterion) =>
+          (criterion.keyPoints ?? '').trim()
+            ? criterion
+            : { ...criterion, keyPoints: result.keyPoints[criterion.id] ?? criterion.keyPoints },
+        ),
+      }))
+      setSource(result.provenance)
+      setImportNotice('Drafted key points for the marker. Review them before saving.')
     })
   }
 
@@ -806,6 +829,20 @@ function RubricEditor({ original, initialFile, workspace, commit, deviceReady, i
       setError('')
       setRubric({ ...rubric, criteria: [...rubric.criteria, newCriterion()] })
     }}><Plus size={17} />Add criterion</button>}
+    {missingKeyPointsCount > 0 && canAudit && briefReady && (
+      <Notice>
+        <div className="inline-confirm">
+          <span>
+            {missingKeyPointsCount} {missingKeyPointsCount === 1 ? 'criterion has' : 'criteria have'} no key points for the marker.
+            {cloudFallbackReady ? ' Cloud AI can draft them from this rubric alone.' : ' On-device AI can draft them.'}
+          </span>
+          <button type="button" className="button secondary compact-btn" disabled={busy}
+            onClick={() => { if (cloudFallbackReady) setBriefPreview(true); else runBriefDraft() }}>
+            {cloudFallbackReady ? <Cloud size={15} /> : <Sparkles size={15} />}Draft key points
+          </button>
+        </div>
+      </Notice>
+    )}
     {missingPracticeCount > 0 && hasNamedCriteria && (
       <Notice>
         <div className="inline-confirm">
@@ -843,6 +880,14 @@ function RubricEditor({ original, initialFile, workspace, commit, deviceReady, i
           }
         })
       }}><Cloud size={17} />Run cloud rubric audit</button>
+    </Modal>}
+    {briefPreview && <Modal title="Review cloud payload" onClose={() => setBriefPreview(false)}>
+      <p><Info size={16} className="inline-icon" /> Firebase receives only this rubric’s title, question, and scoring criteria. No student data or existing key points are sent.
+        {deviceReady && ' If the cloud request fails, on-device AI drafts the key points instead.'}</p>
+      <pre className="payload">{JSON.stringify(markingBriefPayload(rubric), null, 2)}</pre>
+      <button type="button" className="button primary" disabled={!briefReady || !canAudit} onClick={runBriefDraft}>
+        <Cloud size={17} />Draft key points
+      </button>
     </Modal>}
   </form>
 }

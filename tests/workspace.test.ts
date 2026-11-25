@@ -735,5 +735,35 @@ test('hybrid AI routing policy enforces strict local isolation for private stude
   }
 })
 
+test('field responses read from Firestore are re-checked element by element', async () => {
+  const { MAX_FIELDS, MAX_SUBMISSION_TEXT, sanitizeFieldValues } = await import('../src/domain/submissionLink.ts')
+  const valid = {
+    fieldId: 'answer', label: 'Your answer', type: 'long_text', textValue: 'A thread shares memory.',
+    fileName: '', fileType: '', fileSize: 0, extractedText: '',
+  }
 
+  // A well-formed response is returned unchanged.
+  assert.deepEqual(sanitizeFieldValues([valid]), [valid])
 
+  // Security rules check only the first element, so later ones may be anything a client sends.
+  const cleaned = sanitizeFieldValues([
+    valid,
+    null,
+    42,
+    'text',
+    ['nested'],
+    { ...valid, type: 'script' },
+    { type: 'file', label: 7, textValue: { evil: true }, fileSize: -5, fileName: 'x'.repeat(500) },
+    { ...valid, fieldId: 'essay', textValue: 'y'.repeat(MAX_SUBMISSION_TEXT + 500), fileSize: Number.POSITIVE_INFINITY },
+  ])
+  assert.equal(cleaned.length, 3)
+  assert.deepEqual(cleaned[1], {
+    fieldId: '', label: 'Field', type: 'file', textValue: '', fileName: 'x'.repeat(160), fileType: '', fileSize: 0, extractedText: '',
+  })
+  assert.equal(cleaned[2].textValue.length, MAX_SUBMISSION_TEXT)
+  assert.equal(cleaned[2].fileSize, 0)
+
+  assert.deepEqual(sanitizeFieldValues(undefined), [])
+  assert.deepEqual(sanitizeFieldValues({ 0: valid }), [])
+  assert.equal(sanitizeFieldValues(Array.from({ length: 50 }, () => valid)).length, MAX_FIELDS)
+})

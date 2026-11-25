@@ -1,0 +1,5 @@
+Project name: HIST150 · Modern European History
+Description: Seminar essay plan: origins of the First World War.
+
+Rubric: rubric/rubric-photo.jpg
+Import via: Rubrics → Choose photo, then 'Read rubric from photo' (AI). rubric-backup.txt is the same rubric as text

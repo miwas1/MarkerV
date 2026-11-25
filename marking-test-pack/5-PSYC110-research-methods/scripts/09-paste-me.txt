@@ -1,0 +1,1 @@
+Correlation means two variables move together; causation means one variable changes the other. Correlation does not imply causation. For example, ice cream sales and sunburn rise together because of hot weather. A randomised experiment with a control group, where participants are randomly assigned and the independent variable is manipulated, can test causation.

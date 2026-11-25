@@ -524,6 +524,9 @@ export function StudentSubmit() {
                 <Loading>Submitting your work…</Loading>
               )}
 
+              <p className="muted">
+                Your answers are stored online in your lecturer’s private dropbox so they can mark them. They are not sent to cloud AI.
+              </p>
               <footer className="form-actions">
                 <button type="submit" className="button primary" disabled={submitting}>
                   <Send size={16} />

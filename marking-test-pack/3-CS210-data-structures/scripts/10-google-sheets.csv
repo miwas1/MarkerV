@@ -1,0 +1,2 @@
+Response ID,Answer
+R-1030,"Array access O(1), list O(n). Front insert is O(1) for a list."

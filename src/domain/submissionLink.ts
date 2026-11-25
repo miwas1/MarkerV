@@ -101,6 +101,34 @@ export type StudentSubmissionDoc = {
   updatedAtMs: number
 }
 
+const FIELD_TYPES: readonly FieldType[] = ['short_text', 'long_text', 'file']
+const clippedText = (value: unknown, max: number) => (typeof value === 'string' ? value.slice(0, max) : '')
+
+/**
+ * Field responses as read from Firestore. Security rules bound the array's length but can check
+ * the structure of its first element only, so every element is checked again here before the
+ * lecturer's screens use it. Malformed elements are dropped and oversized strings are clipped.
+ */
+export function sanitizeFieldValues(raw: unknown): FieldResponseValue[] {
+  if (!Array.isArray(raw)) return []
+  return raw.slice(0, MAX_FIELDS).flatMap((item): FieldResponseValue[] => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const row = item as Record<string, unknown>
+    if (!FIELD_TYPES.includes(row.type as FieldType)) return []
+    const size = typeof row.fileSize === 'number' && Number.isFinite(row.fileSize) ? row.fileSize : 0
+    return [{
+      fieldId: clippedText(row.fieldId, 128),
+      label: clippedText(row.label, MAX_FIELD_LABEL) || 'Field',
+      type: row.type as FieldType,
+      textValue: clippedText(row.textValue, MAX_SUBMISSION_TEXT),
+      fileName: clippedText(row.fileName, MAX_FILE_NAME),
+      fileType: clippedText(row.fileType, 120),
+      fileSize: Math.min(MAX_FILE_BYTES, Math.max(0, Math.round(size))),
+      extractedText: clippedText(row.extractedText, MAX_SUBMISSION_TEXT),
+    }]
+  })
+}
+
 const SLUG_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
 
 export function generateUniqueLinkId(): string {

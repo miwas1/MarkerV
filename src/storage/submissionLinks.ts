@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocFromServer,
+  getDocs,
   getFirestore,
   onSnapshot,
   query,
@@ -32,6 +33,7 @@ import {
   MAX_PROJECT_NAME,
   MAX_SUBMISSION_TEXT,
   rubricSnapshotTotal,
+  sanitizeFieldValues,
   validateLinkDraft,
   type AutoMarkEngine,
   type AutoMarkOutcome,
@@ -181,7 +183,7 @@ function parseSubmissionDoc(id: string, data: DocumentData): StudentSubmissionDo
     ownerId: String(data.ownerId ?? ''),
     status: (data.status as StudentSubmissionDoc['status']) ?? 'submitted',
     submitterLabel: String(data.submitterLabel ?? 'Student submission'),
-    fieldValues: Array.isArray(data.fieldValues) ? (data.fieldValues as FieldResponseValue[]) : [],
+    fieldValues: sanitizeFieldValues(data.fieldValues),
     combinedAnswer: String(data.combinedAnswer ?? ''),
     attachmentImageDataUrl: String(data.attachmentImageDataUrl ?? ''),
     attachmentFileName: String(data.attachmentFileName ?? ''),
@@ -329,10 +331,22 @@ export async function toggleSubmissionLinkOpen(linkId: string, isOpen: boolean):
   }
 }
 
-export async function deleteSubmissionLink(linkId: string): Promise<void> {
+/**
+ * Deletes a link together with every submission received through it, and returns how many
+ * submissions were removed. Firestore does not delete a subcollection with its parent, and the
+ * security rules let the owner delete a submission only while its link still exists, so the
+ * submissions go first. If any deletion fails the link is kept, so the lecturer can try again.
+ */
+export async function deleteSubmissionLink(linkId: string, ownerId: string): Promise<number> {
   const path = `submissionLinks/${linkId}`
   try {
-    await deleteDoc(doc(getDb(), 'submissionLinks', linkId))
+    const db = getDb()
+    const received = await getDocs(
+      query(collection(db, 'submissionLinks', linkId, 'submissions'), where('ownerId', '==', ownerId)),
+    )
+    await Promise.all(received.docs.map((entry) => deleteDoc(entry.ref)))
+    await deleteDoc(doc(db, 'submissionLinks', linkId))
+    return received.size
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path)
   }

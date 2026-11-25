@@ -1,0 +1,5 @@
+Project name: CS210 · Data Structures
+Description: Midterm question 4: arrays and linked lists.
+
+Rubric: rubric/rubric.pdf
+Import via: Rubrics → Upload file (PDF)

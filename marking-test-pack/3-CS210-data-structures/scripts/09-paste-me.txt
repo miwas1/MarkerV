@@ -1,0 +1,1 @@
+Arrays have O(1) access by index, while linked lists need O(n) traversal from the head. Inserting at the front of a linked list is O(1) because only the head pointer changes; for an array it is O(n) since every element shifts. I would choose a linked list for a to-do list.

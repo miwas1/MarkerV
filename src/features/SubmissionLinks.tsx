@@ -275,6 +275,10 @@ export function SubmissionLinks({
       {banner && <Notice>{banner}</Notice>}
       {linksError && <Notice error>{linksError}</Notice>}
       {actionError && <Notice error>{actionError}</Notice>}
+      <Notice>
+        Answers students send through a link are stored online in your own Firestore dropbox, with any suggested marks
+        you save on them, until you delete them. They are never sent to cloud AI, and marking still runs on this device.
+      </Notice>
 
       <section className="stats" aria-label="Submission link totals">
         <div className="stat panel">
@@ -451,7 +455,8 @@ export function SubmissionLinks({
         <Modal title="Delete submission link?" onClose={() => setDeleteTarget(null)}>
           <p>
             Deleting <strong>{deleteTarget.title}</strong> immediately disables its unique URL so students can no longer
-            open or submit through it. Scripts you already imported into your workspace stay saved locally.
+            open or submit through it. It also permanently deletes every submission received through it from your Firestore
+            dropbox. Scripts you already imported into your workspace stay saved in this browser.
           </p>
           {actionError && <Notice error>{actionError}</Notice>}
           <div className="button-row">
@@ -464,9 +469,11 @@ export function SubmissionLinks({
               disabled={busy}
               onClick={() => {
                 void run(async () => {
-                  await deleteSubmissionLink(deleteTarget.id)
+                  const removed = await deleteSubmissionLink(deleteTarget.id, deleteTarget.ownerId)
                   setDeleteTarget(null)
-                  setBanner('Submission link deleted.')
+                  setBanner(removed
+                    ? `Submission link deleted, with ${removed} received ${removed === 1 ? 'submission' : 'submissions'}.`
+                    : 'Submission link deleted.')
                 })
               }}
             >
@@ -819,7 +826,7 @@ function LinkBuilder({
             </label>
             <p className="muted">
               {autoMark
-                ? 'Incoming answers are queued so you can run quote-verified suggestions on your own device in the inbox. Students can never write or alter saved marks.'
+                ? 'Incoming answers are queued so you can run quote-verified suggestions on your own device in the inbox. Suggestions you save are stored with the submission in your dropbox. Students can never write or alter saved marks.'
                 : 'Submissions are collected ungraded so you can review and mark them manually or with on-device AI in your workspace.'}
             </p>
 

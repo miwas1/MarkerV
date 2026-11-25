@@ -1,0 +1,5 @@
+Project name: ECON201 · Microeconomics
+Description: Problem set 3: elasticity and revenue.
+
+Rubric: rubric/rubric.docx
+Import via: Rubrics → Upload file (Word table)

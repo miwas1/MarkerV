@@ -1,0 +1,5 @@
+Project name: PSYC110 · Research Methods
+Description: Tutorial quiz: correlation, causation and experiments.
+
+Rubric: rubric/rubric-table.txt
+Import via: Rubrics → Upload file (pipe table, highest mark column first)

@@ -10,7 +10,10 @@ export function FeedbackRoute({ workspace, sample = false, ...props }: { workspa
   const { id } = useParams()
   const script = workspace.scripts.find((row) => row.id === id)
   const rubric = workspace.rubrics.find((row) => row.id === script?.rubricId)
-  if (!script?.finalisedAt || !rubric) return <Notice>Finalise the script before preparing feedback. <Link to={props.base}>Return to scripts</Link></Notice>
+  if (!script?.finalisedAt || !rubric) return <>
+    <header className="page-heading"><div><h1>Feedback & oral prep</h1></div></header>
+    <Notice>Finalise the script before preparing feedback. <Link to={props.base}>Return to scripts</Link></Notice>
+  </>
   return <Feedback key={script.id} script={script} rubric={rubric} allowCloud={workspace.allowCloud} sample={sample} {...props} />
 }
 

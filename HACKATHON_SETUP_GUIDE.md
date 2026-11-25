@@ -1,9 +1,10 @@
 # Marking Assistant — #BuildHybridAI 2026 Setup & Submission Guide
 
 Everything automated in code is aligned to the committed Firebase project (`gen-lang-client-0769662723`) and default cloud model (`gemini-3.5-flash-lite`):
-- **Three of Firebase AI Logic's four inference modes** (`src/domain/aiRouting.ts` + `src/ai/firebase.ts`); `PREFER_IN_CLOUD` is unused because no task in the routing policy is cloud-first with a device fallback:
+- **All four Firebase AI Logic inference modes** (`src/domain/aiRouting.ts` + `src/ai/firebase.ts`):
   - `ONLY_ON_DEVICE`: Private student transcription, quote-verified marking, feedback drafts, and real student practice replies (zero cloud fallback).
   - `PREFER_ON_DEVICE`: Rubric drafting, rubric photo OCR, and end-to-end **fictional sample workspace** marking/transcription/feedback/practice. Runs Gemini Nano locally first with zero network calls and retries once in Cloud Gemini on unavailability or local error when Cloud AI is enabled.
+  - `PREFER_IN_CLOUD`: Key points for the marker, drafted from the rubric alone. Cloud Gemini writes them when Cloud AI is enabled; on-device Gemini Nano takes over when Cloud AI is off, offline or the request fails.
   - `ONLY_IN_CLOUD`: Rubric reliability audits, aggregate cohort re-teaching plans, and fictional second-opinion comparisons—always preceded by an exact JSON payload preview, small-cohort suppression, App Check (`useLimitedUseAppCheckTokens: true`), and fresh Remote Config (`allow_cloud_ai`).
 - **Hardened Submission Links (`firestore.rules`):** Optional lecturer-owned `/submit/:linkId` dropboxes initialize App Check and strictly forbid unauthenticated student writes from setting marks, suggestions, or scores. Marking runs on the lecturer's device and imports as suggestions only.
 - **Zero eager Firestore traffic:** Normal landing and private workspace visits make zero Firestore requests.

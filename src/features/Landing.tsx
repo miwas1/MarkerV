@@ -6,7 +6,7 @@ import seminarNotesImg from '../assets/images/seminar_teaching_notes_17955167859
 import workflowCaptureImg from '../assets/images/workflow_handwritten_capture_1795516786416.webp'
 import { useAuth } from '../auth/auth'
 
-type RoutingModeId = 'device' | 'hybrid' | 'cloud'
+type RoutingModeId = 'device' | 'hybrid' | 'brief' | 'cloud'
 
 type RoutingModeSpec = {
   id: RoutingModeId
@@ -69,6 +69,29 @@ const ROUTING_MODES: RoutingModeSpec[] = [
   "localNetworkCalls": 0,
   "fallbackCondition": "allowCloud && RemoteConfig(allow_cloud_ai)",
   "containsRealStudentScripts": false
+}`,
+  },
+  {
+    id: 'brief',
+    tabLabel: 'Marker key points',
+    sdkMode: 'InferenceMode.PREFER_IN_CLOUD',
+    headline: 'The cloud model briefs the on-device marker without seeing any student work.',
+    summary:
+      'Cloud Gemini reads the rubric alone and drafts key points for each criterion. You review them, and the on-device model then uses them when it marks private scripts. If Cloud AI is off, offline, or the request fails, the on-device model drafts the key points instead.',
+    tasks: [
+      'Key points per criterion: what earns each mark, accepted wording, and a common mistake',
+      'Reviewed and edited by the lecturer before the rubric is saved',
+      'Used by on-device marking, which sends nothing to the cloud',
+    ],
+    boundaryNote: 'Only the rubric title, question, and scoring criteria are sent. No answers, names, or existing key points.',
+    actionLabel: 'Open the sample rubric',
+    actionTo: '/sample/rubric',
+    payloadTitle: 'Cloud-first boundary · Rubric only',
+    payloadPreview: `{
+  "inferenceMode": "PREFER_IN_CLOUD",
+  "sent": ["title", "question", "criteria"],
+  "studentWorkInRequest": false,
+  "fallback": "On-device model when Cloud AI is off, offline, or fails"
 }`,
   },
   {
@@ -282,8 +305,8 @@ export function Landing({ deviceReady }: { deviceReady: boolean }) {
               </div>
               <div className="lp-proof-cell">
                 <dt>Firebase AI Logic modes</dt>
-                <dd>3 tiers</dd>
-                <span>Strict local, local-first hybrid, and audited cloud pedagogy.</span>
+                <dd>4 modes</dd>
+                <span>On-device only, device-first, cloud-first with a device fallback, and cloud-only.</span>
               </div>
               <div className="lp-proof-cell">
                 <dt>Local capture &amp; upload inputs</dt>
@@ -432,8 +455,8 @@ export function Landing({ deviceReady }: { deviceReady: boolean }) {
               <div className="lp-closing-copy">
                 <h2 className="lp-closing-title">Start marking in a private local workspace.</h2>
                 <p>
-                  Create your first project and rubric in seconds—stored locally in this browser, with optional
-                  submission dropbox links and Cloud AI governance when you need them.
+                  Create your first project and rubric in seconds. They are stored locally in this browser. Optional
+                  submission links store student answers online in your own Firestore dropbox.
                 </p>
               </div>
               <div className="lp-closing-actions">
