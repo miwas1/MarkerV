@@ -154,7 +154,10 @@ export default function Inspector({ deviceReady, allowCloud, online, onAllowClou
           } catch (failure) {
             if (!active()) return
             // Two failures in a row at the start mean the engine is not working, so stop and say why.
-            if (index === 1 && !outcomes[0].ok) throw failure
+            // In a cloud run, two in a row at any point mean the same (quota, App Check or the
+            // connection), and carrying on would report the remaining scripts as marking failures.
+            const previousFailed = index > 0 && !outcomes[index - 1].ok
+            if (previousFailed && (index === 1 || engine === 'cloud')) throw failure
             outcomes.push(failedOutcome(item, performance.now() - started))
           }
         }

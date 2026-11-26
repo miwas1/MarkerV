@@ -193,13 +193,13 @@ export function DeviceAiHelper({
             <summary>
               {needsPhotoFlagOnly
                 ? 'Optional: enable handwriting photo AI in Chrome'
-                : 'How to enable Chrome Built-in AI (1-minute setup)'}
+                : 'How to enable Gemini Nano 4 in Chrome (1-minute setup)'}
             </summary>
             <div className="helper-steps">
               <p className="muted">
                 {needsPhotoFlagOnly
                   ? 'Text marking already works privately offline. To also transcribe photos of handwritten pages locally, enable the multimodal flag in Chrome:'
-                  : 'Chrome’s built-in Prompt API works on current desktop Chrome (22 GB free disk space; GPU > 4 GB VRAM or 16 GB RAM + 4 CPU cores). Update Chrome first; if it still shows unavailable, enable these flags once:'}
+                  : 'Chrome’s built-in Prompt API runs Gemini Nano 4 on current desktop Chrome (22 GB free disk space; GPU > 4 GB VRAM or 16 GB RAM + 4 CPU cores). Update Chrome first; if it still shows unavailable, enable these flags once:'}
               </p>
               <ol className="helper-ol">
                 <li>Open <code>chrome://flags</code> in a new tab (paste the address below).</li>
@@ -210,11 +210,12 @@ export function DeviceAiHelper({
                 {!needsPhotoFlagOnly && (
                   <>
                     <CopyRow label="1. Open Chrome flags" value="chrome://flags" />
-                    <CopyRow label="2. Text model flag (search in flags)" value="Prompt API for Gemini Nano" />
+                    <CopyRow label="2. Gemini Nano 4 model flag (search in flags)" value="Gemma 4 for Built-in AI" />
+                    <CopyRow label="3. Prompt API flag (search in flags)" value="Prompt API for Gemini Nano" />
                   </>
                 )}
                 <CopyRow
-                  label={needsPhotoFlagOnly ? '1. Multimodal photo flag (paste in address bar)' : '3. Photo / handwriting flag (paste in address bar)'}
+                  label={needsPhotoFlagOnly ? '1. Multimodal photo flag (paste in address bar)' : '4. Photo / handwriting flag (paste in address bar)'}
                   value="chrome://flags/#prompt-api-for-gemini-nano-multimodal-input"
                 />
                 <CopyRow label="Diagnostics (check model download)" value="chrome://on-device-internals" />

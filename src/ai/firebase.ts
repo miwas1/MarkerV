@@ -276,8 +276,13 @@ async function runAiJson(
       device: () => deviceAttempt(parts, schema, wantsImage, active),
       cloudPreflight: async () => { instance = await requireCloud(active) },
       cloud: async (afterDeviceError) => {
-        // If on-device was unavailable before the call, use PREFER_ON_DEVICE (which delegates cleanly to cloud);
-        // if on-device threw or returned malformed JSON, explicitly retry once in cloud via ONLY_IN_CLOUD.
+        // The app checks the device before the SDK does, because the cloud policy checks above
+        // (lecturer opt-in, Remote Config, App Check) must run between a device attempt and any
+        // cloud request, and the SDK's own fallback has no hook for that.
+        // - No device model before the call: hand the SDK PREFER_ON_DEVICE. It checks availability
+        //   again and uses the cloud, or the device if the model became ready in the meantime.
+        // - The device ran and threw or returned malformed JSON: retry once with ONLY_IN_CLOUD,
+        //   since PREFER_ON_DEVICE would send the request back to the model that just failed.
         const model = getGenerativeModel(cloudAi(instance!), {
           mode: afterDeviceError || route.mode === 'ONLY_IN_CLOUD'
             ? InferenceMode.ONLY_IN_CLOUD
@@ -722,12 +727,14 @@ async function requireCloud(active: Active) {
   const instance = app()
   const remote = getRemoteConfig(instance)
   remote.defaultConfig = { allow_cloud_ai: false }
-  remote.settings = { minimumFetchIntervalMillis: policyAge, fetchTimeoutMillis: 8000 }
+  // A slow connection can take longer than the first reCAPTCHA and Remote Config round trips need.
+  remote.settings = { minimumFetchIntervalMillis: policyAge, fetchTimeoutMillis: 20000 }
   // Require a successful current-session activation and a remotely sourced value.
   try {
     await fetchAndActivate(remote)
   } catch {
-    throw new Error('Could not verify the cloud policy in Firebase Remote Config. Publish allow_cloud_ai and try again.')
+    // The fetch itself failed (network or timeout). A missing or false parameter is reported below.
+    throw new Error('Could not reach Firebase Remote Config to check the cloud AI policy. Check your connection and try again.')
   }
   const allow = getValue(remote, 'allow_cloud_ai')
   if (remote.lastFetchStatus !== 'success' || !remote.fetchTimeMillis ||

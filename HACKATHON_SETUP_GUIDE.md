@@ -24,7 +24,7 @@ Everything automated in code is aligned to the committed Firebase project (`gen-
 
 1. In Firebase Console for **`gen-lang-client-0769662723`**, go to **Build → Authentication → Sign-in method** and ensure **Email/Password** is enabled.
 2. Go to **Authentication → Settings → Authorized domains** and verify your hosting origins are listed:
-   - `marking-assistant-1.ai.studio`
+   - `gen-lang-client-0769662723.web.app`
    - `gen-lang-client-0769662723.firebaseapp.com`
    - `localhost` (for local development)
 
@@ -36,7 +36,7 @@ Cloud AI (`ONLY_IN_CLOUD` and `PREFER_ON_DEVICE` fallback) and public student su
 
 1. In Firebase Console for **`gen-lang-client-0769662723`**, go to **Build → App Check → Apps** and register your Web App with a reCAPTCHA Enterprise site key.
 2. Copy that site key into `firebase-applet-config.json` (`"recaptchaSiteKey"`) or `.env.local` (`VITE_FIREBASE_APP_CHECK_SITE_KEY`).
-3. In Google Cloud Console → **Security → reCAPTCHA**, verify your key allows `marking-assistant-1.ai.studio`, `gen-lang-client-0769662723.firebaseapp.com`, and `localhost`.
+3. In Google Cloud Console → **Security → reCAPTCHA**, verify your key allows `gen-lang-client-0769662723.web.app`, `gen-lang-client-0769662723.firebaseapp.com`, and `localhost`.
 4. Under **App Check → APIs**, confirm **Firebase AI Logic** enforcement is enabled.
 
 ### Local testing with App Check Debug Token (optional)
@@ -56,7 +56,7 @@ If reCAPTCHA blocks `localhost` during local testing:
 The app requires a fresh Remote Config fetch before every cloud AI call (cached defaults are rejected).
 
 1. In Firebase Console for **`gen-lang-client-0769662723`**, go to **Run → Remote Config**.
-2. Publish parameter `allow_cloud_ai` (Boolean) as `true` for live judging.
+2. Publish parameter `allow_cloud_ai` (Boolean) as `true` for live judging. `remoteconfig.template.json` holds `true`, so a Firebase CLI deploy that includes Remote Config keeps cloud AI on. Check the template before deploying if you change it.
 3. During your demo video, you can flip `allow_cloud_ai` to `false` to demonstrate the institutional kill-switch blocking cloud requests while on-device marking keeps working offline—then flip it back to `true` before judging.
 
 ---
@@ -64,7 +64,8 @@ The app requires a fresh Remote Config fetch before every cloud AI call (cached 
 ## 5. Verify Chrome Built-in AI
 
 1. Use **current desktop Google Chrome** on hardware meeting Chrome's on-device AI requirements (≥ 22 GB free disk space; GPU > 4 GB VRAM or ≥ 16 GB RAM + ≥ 4 CPU cores).
-2. Open DevTools Console and verify:
+2. Enable Gemini Nano 4: in `chrome://flags`, search for **Gemma 4 for Built-in AI**, enable it and relaunch Chrome (this is the step the hackathon FAQ gives). `chrome://on-device-internals` shows which model is installed.
+3. Open DevTools Console and verify:
    ```js
    await LanguageModel.availability({ expectedInputs: [{ type: 'image' }] })
    ```
@@ -74,20 +75,20 @@ The app requires a fresh Remote Config fetch before every cloud AI call (cached 
 
 ## 6. Build, Publish & Verify
 
-Publish from AI Studio to **`https://marking-assistant-1.ai.studio`** (or run the optional Firebase Hosting + rules deploy if mirroring on Firebase Hosting):
+The submitted live URL is Firebase Hosting: **`https://gen-lang-client-0769662723.web.app`**. The older AI Studio URL (`marking-assistant-1.ai.studio`) serves an earlier build and is not the one to submit. Redeploy after every change that should reach judges:
 
 ```bash
 npm ci
 npm test
 npm run lint
 npm run build
-# Optional Firebase CLI deploy (never run bare `firebase deploy` so Remote Config isn't overwritten):
-firebase deploy --only hosting,firestore:rules --project gen-lang-client-0769662723
+# Deploy only what changed. A bare `firebase deploy` also publishes remoteconfig.template.json.
+npx firebase-tools deploy --only hosting,firestore:rules --project gen-lang-client-0769662723
 ```
 
-Verify your live URL (`https://marking-assistant-1.ai.studio`):
+Verify your live URL (`https://gen-lang-client-0769662723.web.app`):
 - Open **Settings**, toggle **Allow cloud AI** ON, and confirm **Hybrid AI routing** shows `gemini-3.5-flash-lite` and project `gen-lang-client-0769662723`.
-- Open **Try sample** on a device without Gemini Nano (or a phone) and test **Suggest marks (Hybrid AI · sample)**, **Draft (Hybrid AI · sample)**, **Audit rubric quality**, **Draft teaching plan**, and **Sample practice** — confirm real `Cloud` provenance badges.
+- Open **Try interactive demo** on a device without Gemini Nano (or a phone) and test **Suggest marks (Hybrid AI · sample)**, **Draft (Hybrid AI · sample)**, **Audit rubric quality**, **Draft teaching plan**, and **Sample practice** — confirm real `Cloud` provenance badges.
 - On desktop Chrome with Gemini Nano ready, reload once online so `sw.js` activates, toggle **Offline** in DevTools Network panel, and verify **Transcribe on this device**, **Suggest marks on this device**, and **Draft with on-device AI** succeed with `On device` badges and **0 outbound requests**.
 
 ---
@@ -96,7 +97,10 @@ Verify your live URL (`https://marking-assistant-1.ai.studio`):
 
 - [ ] `recaptchaSiteKey` populated in `firebase-applet-config.json` (or `VITE_FIREBASE_APP_CHECK_SITE_KEY` set) so judges on clean clones and the live URL can toggle **Allow cloud AI**
 - [ ] `allow_cloud_ai = true` published in Firebase Remote Config for `gen-lang-client-0769662723`
-- [ ] Live hosted URL (`https://marking-assistant-1.ai.studio`) verified in an incognito window
-- [ ] Clean git repo with `package-lock.json` committed so `npm ci` works on clean clones
+- [ ] Live hosted URL (`https://gen-lang-client-0769662723.web.app`) verified in an incognito window, signed out
+- [ ] Clean git repo with `package-lock.json` committed so `npm ci` works on clean clones, and every local change pushed (commits after the deadline are not evaluated)
+- [ ] All three benchmarks run with **Full run** on one machine and the table pasted into the README (the `RESULTS` comment marks the place)
+- [ ] GitHub repository **About** filled in: description, the live URL as the website, and topics
+- [ ] Devpost form filled in from [DEVPOST_SUBMISSION.md](DEVPOST_SUBMISSION.md), including what was built during the submission period and the testing instructions
 - [ ] Demo video (≤ 3 min) highlighting: quote-exactness verification, small-cohort suppression, exact payload previews, fresh Remote Config gate, and offline `ONLY_ON_DEVICE` vs `PREFER_ON_DEVICE` / `ONLY_IN_CLOUD`
 - [ ] Submit before **Monday, 30 November 2026, 2:00 PM PT**

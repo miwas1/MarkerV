@@ -1,8 +1,8 @@
 {
   "parameters": {
     "allow_cloud_ai": {
-      "defaultValue": { "value": "false" },
-      "description": "Allows optional aggregate teaching summaries and fictional sample comparisons.",
+      "defaultValue": { "value": "true" },
+      "description": "Remote switch for all cloud AI. Set to false to block every cloud AI request; the app's built-in default is false.",
       "valueType": "BOOLEAN"
     }
   }
