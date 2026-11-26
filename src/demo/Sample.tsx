@@ -7,10 +7,11 @@ import { ClassPicture } from '../features/ClassPicture'
 import { Dashboard } from '../features/Dashboard'
 import { FeedbackRoute } from '../features/Feedback'
 import { Practice } from '../features/Practice'
+import { Results } from '../features/Results'
 import { ReviewRoute } from '../features/Review'
 import { Rubrics } from '../features/Rubrics'
 import { useWorkspace } from '../storage/useWorkspace'
-import { Loading, Modal, Notice, Source, useAction } from '../ui'
+import { AllowCloudButton, Loading, Modal, Notice, Source, useAction } from '../ui'
 import { sampleFeedback, sampleId, sampleRubric, sampleTranscript, sampleWorkspace } from './fixtures'
 import photoUrl from './sample-page.jpg'
 
@@ -56,6 +57,7 @@ export default function Sample({
       <Link className="button secondary" to={base}><FlaskConical size={17} />Sample scripts</Link>
       <Link className="button secondary" to={base + '/rubric'}>Sample rubric</Link>
       <Link className="button secondary" to={base + '/class'}>Sample class picture</Link>
+      <Link className="button secondary" to={base + '/results'}>Sample results &amp; export</Link>
       <Link className="button secondary" to={base + '/practice'}>Sample practice</Link>
       <button className="button subtle" onClick={() => setReset(true)}><RotateCcw size={16} />Reset sample</button>
     </div>
@@ -82,10 +84,11 @@ export default function Sample({
     </Notice>
     <Routes>
       <Route path="/sample" element={<Dashboard workspace={activeWorkspace} base={base} sample />} />
-      <Route path="/sample/scripts/:id" element={<SampleReview workspace={activeWorkspace} commit={commit} deviceReady={deviceReady} imageReady={imageReady} base={base} sample />} />
+      <Route path="/sample/scripts/:id" element={<SampleReview workspace={activeWorkspace} commit={commit} deviceReady={deviceReady} imageReady={imageReady} base={base} sample onAllowCloud={onAllowCloud} />} />
       <Route path="/sample/scripts/:id/feedback" element={<FeedbackRoute workspace={activeWorkspace} commit={commit} deviceReady={deviceReady} base={base} sample />} />
-      <Route path="/sample/rubric" element={<Rubrics workspace={activeWorkspace} commit={commit} deviceReady={deviceReady} imageReady={imageReady} />} />
-      <Route path="/sample/class" element={<ClassPicture workspace={activeWorkspace} base={base} />} />
+      <Route path="/sample/rubric" element={<Rubrics workspace={activeWorkspace} commit={commit} deviceReady={deviceReady} imageReady={imageReady} onAllowCloud={onAllowCloud} />} />
+      <Route path="/sample/class" element={<ClassPicture workspace={activeWorkspace} base={base} onAllowCloud={onAllowCloud} />} />
+      <Route path="/sample/results" element={<Results workspace={activeWorkspace} commit={commit} base={base} />} />
       <Route path="/sample/practice" element={<Practice deviceReady={deviceReady} allowCloud={allowCloud} initial={sampleFeedback} sample />} />
       <Route path="*" element={<Navigate to={base} replace />} />
     </Routes>
@@ -99,15 +102,17 @@ export default function Sample({
   </>
 }
 
-function SampleReview(props: Parameters<typeof ReviewRoute>[0]) {
+function SampleReview({ onAllowCloud, ...props }: Parameters<typeof ReviewRoute>[0] & { onAllowCloud?: () => Promise<void> }) {
   const { id } = useParams()
   const script = props.workspace.scripts.find((record) => record.id === id)
   const comparison = script?.id === sampleId && script.transcript === sampleTranscript && script.rubricId === sampleRubric.id
-    ? <SecondOpinion script={script} allowCloud={props.workspace.allowCloud} /> : undefined
+    ? <SecondOpinion script={script} allowCloud={props.workspace.allowCloud} onAllowCloud={onAllowCloud} /> : undefined
   return <ReviewRoute {...props} comparison={comparison} />
 }
 
-function SecondOpinion({ script, allowCloud }: { script: Script; allowCloud: boolean }) {
+function SecondOpinion({ script, allowCloud, onAllowCloud }: {
+  script: Script; allowCloud: boolean; onAllowCloud?: () => Promise<void>
+}) {
   const [preview, setPreview] = useState(false)
   const [comparison, setComparison] = useState<Awaited<ReturnType<typeof compareSample>>>()
   const currentPermission = useRef(allowCloud)
@@ -123,7 +128,11 @@ function SecondOpinion({ script, allowCloud }: { script: Script; allowCloud: boo
       </div>
     })}
     {error && <Notice error>{error}</Notice>}
-    {!allowCloud && <p className="muted"><Link to="/settings">Allow cloud AI in settings</Link> to compare this fictional script.</p>}
+    {!allowCloud && cloudConfigured && <div className="inline-confirm">
+      <span className="muted">Allow cloud AI to compare this fictional script with a cloud second reader.</span>
+      <AllowCloudButton onAllowCloud={onAllowCloud} />
+    </div>}
+    {!allowCloud && !cloudConfigured && <p className="muted"><Link to="/settings">Configure Cloud AI in settings</Link> to compare this fictional script.</p>}
     {busy ? <div className="button-row"><Loading>Comparing the fictional script…</Loading><button className="button subtle" onClick={cancel}>Cancel</button></div> :
       <button className="button secondary" disabled={!allowCloud || !cloudConfigured} onClick={() => setPreview(true)}><Cloud size={17} />Compare second opinion</button>}
     {preview && <Modal title="Review fictional cloud payload" onClose={() => setPreview(false)}>

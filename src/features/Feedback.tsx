@@ -1,9 +1,10 @@
-import { ArrowDownToLine, ClipboardCheck, MessageSquare, Save, Sparkles } from 'lucide-react'
+import { ArrowDownToLine, Check, ClipboardCheck, ClipboardCopy, FileSpreadsheet, MessageSquare, Save, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { canRunAi, draftFeedback } from '../ai/firebase'
+import { defaultOralQuestions, feedbackDownloadName, formatStudentFeedbackText } from '../domain/export'
 import { downloadFile } from '../domain/photo'
-import { earned, makeFeedback, MAX_FEEDBACK, scriptName, total, updateScript, type FeedbackFile, type OralQuestion, type Provenance, type Rubric, type Script, type Workspace } from '../domain/workspace'
+import { earned, makeFeedback, MAX_FEEDBACK, scriptName, total, updateScript, type FeedbackFile, type Provenance, type Rubric, type Script, type Workspace } from '../domain/workspace'
 import { Loading, Modal, Notice, Source, useAction, type Commit } from '../ui'
 
 export function FeedbackRoute({ workspace, sample = false, ...props }: { workspace: Workspace; commit: Commit; deviceReady: boolean; base: string; sample?: boolean }) {
@@ -11,23 +12,10 @@ export function FeedbackRoute({ workspace, sample = false, ...props }: { workspa
   const script = workspace.scripts.find((row) => row.id === id)
   const rubric = workspace.rubrics.find((row) => row.id === script?.rubricId)
   if (!script?.finalisedAt || !rubric) return <>
-    <header className="page-heading"><div><h1>Feedback & oral prep</h1></div></header>
+    <header className="page-heading"><div><h1>Feedback &amp; oral prep</h1></div></header>
     <Notice>Finalise the script before preparing feedback. <Link to={props.base}>Return to scripts</Link></Notice>
   </>
   return <Feedback key={script.id} script={script} rubric={rubric} allowCloud={workspace.allowCloud} sample={sample} {...props} />
-}
-
-function defaultOral(script: Script, rubric: Rubric): OralQuestion[] {
-  const criteria = [...rubric.criteria].sort((a, b) => (b.max - script.marks[b.id]) - (a.max - script.marks[a.id]))
-  return Array.from({ length: 3 }, (_, index) => {
-    const criterion = criteria[index % criteria.length]
-    const prompt = [
-      criterion.practice || 'Explain ' + criterion.title + ' in your own words.',
-      'Give an example that demonstrates ' + criterion.title + '.',
-      'What common mistake would you avoid when explaining ' + criterion.title + '?',
-    ][index]
-    return { prompt, cue: criterion.levels[criterion.max] }
-  })
 }
 
 function Feedback({ script, rubric, base, commit, deviceReady, allowCloud, sample }: {
@@ -35,13 +23,14 @@ function Feedback({ script, rubric, base, commit, deviceReady, allowCloud, sampl
 }) {
   const [tab, setTab] = useState<'feedback' | 'oral'>('feedback')
   const [feedback, setFeedback] = useState(script.feedback)
-  const [oral, setOral] = useState(script.oral ?? defaultOral(script, rubric))
+  const [oral, setOral] = useState(script.oral ?? defaultOralQuestions(script, rubric))
   const [source, setSource] = useState<Provenance | undefined>(script.feedbackSource)
   const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [preview, setPreview] = useState<FeedbackFile>()
   const [confirmDraft, setConfirmDraft] = useState(false)
   const { run, busy, error, cancel } = useAction()
-  const dirty = JSON.stringify(feedback) !== JSON.stringify(script.feedback) || JSON.stringify(oral) !== JSON.stringify(script.oral ?? defaultOral(script, rubric))
+  const dirty = JSON.stringify(feedback) !== JSON.stringify(script.feedback) || JSON.stringify(oral) !== JSON.stringify(script.oral ?? defaultOralQuestions(script, rubric))
   const [baseline, setBaseline] = useState(script.revision)
   const canDraft = canRunAi('draftFeedback', { isSample: sample, deviceAvailable: deviceReady, allowCloud })
 
@@ -62,6 +51,15 @@ function Feedback({ script, rubric, base, commit, deviceReady, allowCloud, sampl
     })
   }
 
+  function copyFeedbackText() {
+    const released = { ...script, feedback, oral }
+    const text = formatStudentFeedbackText(released, rubric)
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    })
+  }
+
   function runAiDraft() {
     setConfirmDraft(false)
     void run(async (active) => {
@@ -75,22 +73,27 @@ function Feedback({ script, rubric, base, commit, deviceReady, allowCloud, sampl
     })
   }
 
+  const downloadFilename = feedbackDownloadName(script, rubric, 'json')
+
   return <>
     <Link className="back-link" to={base + '/scripts/' + script.id}>{scriptName(script)}</Link>
     <header className="page-heading">
-      <div><h1>Feedback & oral prep</h1><p>{rubric.title} · {scriptName(script)} · {earned(script, rubric)} / {total(rubric)} marks</p></div>
-      {canDraft && <button className="button secondary" disabled={busy} onClick={() => {
-        if (Object.values(feedback).some(Boolean) || dirty) {
-          setConfirmDraft(true)
-          return
-        }
-        runAiDraft()
-      }}><Sparkles size={17} />{deviceReady ? 'Draft with on-device AI' : 'Draft (Hybrid AI · sample)'}</button>}
+      <div><h1>Feedback &amp; oral prep</h1><p>{rubric.title} · {scriptName(script)} · {earned(script, rubric)} / {total(rubric)} marks</p></div>
+      <div className="button-row">
+        <Link className="button secondary" to={base + '/results'}><FileSpreadsheet size={16} aria-hidden="true" />Results &amp; export</Link>
+        {canDraft && <button type="button" className="button secondary" disabled={busy} onClick={() => {
+          if (Object.values(feedback).some(Boolean) || dirty) {
+            setConfirmDraft(true)
+            return
+          }
+          runAiDraft()
+        }}><Sparkles size={17} aria-hidden="true" />{deviceReady ? 'Draft with on-device AI' : 'Draft (Hybrid AI · sample)'}</button>}
+      </div>
     </header>
     <section className="panel form-panel">
       <div className="section-heading"><div className="segmented" aria-label="Feedback view">
-        <button aria-pressed={tab === 'feedback'} onClick={() => setTab('feedback')}><ClipboardCheck size={16} />Feedback</button>
-        <button aria-pressed={tab === 'oral'} onClick={() => setTab('oral')}><MessageSquare size={16} />Oral follow-up</button>
+        <button type="button" aria-pressed={tab === 'feedback'} onClick={() => setTab('feedback')}><ClipboardCheck size={16} aria-hidden="true" />Feedback</button>
+        <button type="button" aria-pressed={tab === 'oral'} onClick={() => setTab('oral')}><MessageSquare size={16} aria-hidden="true" />Oral follow-up</button>
       </div>{source && <Source value={source} />}</div>
       {tab === 'feedback' ? <>
         <p className="muted">Write practical next steps for each criterion. The student sees only the material in the release preview.</p>
@@ -109,15 +112,18 @@ function Feedback({ script, rubric, base, commit, deviceReady, allowCloud, sampl
         </article>)}
       </>}
       {error && <Notice error>{error}</Notice>}
-      {saved && !dirty && <Notice>Feedback saved on this device.</Notice>}
-      {busy && <div className="button-row"><Loading>Working on feedback…</Loading><button className="button subtle" onClick={cancel}>Dismiss progress</button></div>}
+      {saved && !dirty && <Notice>Feedback saved on this device. Ready to export individually or as a class bundle in <Link to={base + '/results'}>Results &amp; export</Link>.</Notice>}
+      {busy && <div className="button-row"><Loading>Working on feedback…</Loading><button type="button" className="button subtle" onClick={cancel}>Dismiss progress</button></div>}
       <footer className="form-actions">
-        <button className="button secondary" disabled={busy} onClick={() => save(false)}><Save size={17} />Save draft</button>
-        <button className="button primary" disabled={busy} onClick={() => save(true)}>Preview student feedback</button>
+        <button type="button" className="button secondary" disabled={busy} onClick={() => save(false)}><Save size={17} aria-hidden="true" />Save draft</button>
+        <button type="button" className="button secondary" disabled={busy} onClick={copyFeedbackText}>
+          {copied ? <><Check size={16} aria-hidden="true" />Copied text</> : <><ClipboardCopy size={16} aria-hidden="true" />Copy feedback text</>}
+        </button>
+        <button type="button" className="button primary" disabled={busy} onClick={() => save(true)}>Preview &amp; export</button>
       </footer>
     </section>
     {preview && <Modal title="Student feedback preview" onClose={() => setPreview(undefined)}>
-      <p>Check the released text for identifying details or quoted work before downloading.</p>
+      <p>Check the released text for identifying details or quoted work before downloading. File name: <code>{downloadFilename}</code></p>
       <h3>{preview.title}</h3>
       {preview.criteria.map((row, index) => <div className="release-row" key={index}>
         <strong>{row.title} · {row.score} / {row.max}</strong>
@@ -125,10 +131,15 @@ function Feedback({ script, rubric, base, commit, deviceReady, allowCloud, sampl
         <p><small>Practice</small> {row.prompt}</p>
         <p><small>Self-check</small> {row.cue}</p>
       </div>)}
-      <button className="button primary" onClick={() => {
-        downloadFile(new Blob([JSON.stringify(preview, null, 2)], { type: 'application/json' }), 'marking-feedback.json')
-        setPreview(undefined)
-      }}><ArrowDownToLine size={17} />Export feedback</button>
+      <div className="button-row">
+        <button type="button" className="button primary" onClick={() => {
+          downloadFile(new Blob([JSON.stringify(preview, null, 2)], { type: 'application/json' }), downloadFilename)
+          setPreview(undefined)
+        }}><ArrowDownToLine size={17} aria-hidden="true" />Export practice JSON</button>
+        <button type="button" className="button secondary" onClick={copyFeedbackText}>
+          {copied ? <><Check size={16} aria-hidden="true" />Copied</> : <><ClipboardCopy size={16} aria-hidden="true" />Copy plain text</>}
+        </button>
+      </div>
     </Modal>}
     {confirmDraft && <Modal title="Replace current feedback?" onClose={() => setConfirmDraft(false)}>
       <p>Replace the current notes and oral follow-up questions with an AI draft?</p>

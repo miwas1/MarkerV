@@ -92,9 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await createUserWithEmailAndPassword(auth, email.trim(), password)
       if (name.trim()) {
         await updateProfile(result.user, { displayName: name.trim() })
+        await result.user.reload().catch(() => undefined)
       }
-      setUser({ ...result.user, displayName: name.trim() || result.user.displayName } as User)
-      return result.user
+      const refreshed = auth.currentUser ?? result.user
+      setUser(refreshed)
+      return refreshed
     } catch (error) {
       throw new Error(formatAuthError(error))
     }

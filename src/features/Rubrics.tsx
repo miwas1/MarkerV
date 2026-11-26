@@ -22,6 +22,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   auditRubric,
   canRunAi,
+  cloudConfigured,
   draftMarkingBrief,
   draftPracticeQuestions,
   draftRubric,
@@ -32,6 +33,7 @@ import {
 import { CameraModal } from '../components/CameraModal'
 import { estimateRubricTokens, markingBriefPayload, ON_DEVICE_TOKEN_THRESHOLD } from '../domain/aiSchemas'
 import { detectFileKind, DOCUMENT_ACCEPT, extractDocument, parseRubricText, type ParsedRubricDraft } from '../domain/document'
+import { createRubricFromTemplate, STARTER_RUBRICS } from '../domain/onboarding'
 import { noCrop, preparePhotoWithMetrics } from '../domain/photo'
 import {
   activeProjectOf,
@@ -56,7 +58,7 @@ import {
   type Rubric,
   type Workspace,
 } from '../domain/workspace'
-import { Loading, Modal, Notice, Source, useAction, useObjectUrl, type Commit } from '../ui'
+import { AllowCloudButton, Loading, Modal, Notice, Source, useAction, useObjectUrl, type Commit } from '../ui'
 
 function freshRubric(projectId: string): Rubric {
   const id = crypto.randomUUID()
@@ -76,8 +78,8 @@ function auditTargetDescription(issue: AuditIssue): string {
   return 'Scoring level'
 }
 
-export function Rubrics({ workspace, commit, deviceReady, imageReady = false }: {
-  workspace: Workspace; commit: Commit; deviceReady: boolean; imageReady?: boolean
+export function Rubrics({ workspace, commit, deviceReady, imageReady = false, onAllowCloud }: {
+  workspace: Workspace; commit: Commit; deviceReady: boolean; imageReady?: boolean; onAllowCloud?: () => Promise<void>
 }) {
   const [editing, setEditing] = useState<{ rubric: Rubric; initialFile?: File }>()
   const [notice, setNotice] = useState('')
@@ -126,7 +128,7 @@ export function Rubrics({ workspace, commit, deviceReady, imageReady = false }: 
     {notice && <Notice>{notice}</Notice>}
     {listError && <Notice error>{listError}</Notice>}
     {editing ? <RubricEditor key={editing.rubric.id} original={editing.rubric} initialFile={editing.initialFile}
-      workspace={workspace} commit={commit} deviceReady={deviceReady} imageReady={imageReady}
+      workspace={workspace} commit={commit} deviceReady={deviceReady} imageReady={imageReady} onAllowCloud={onAllowCloud}
       close={(savedMessage) => { setEditing(undefined); if (savedMessage) setNotice(savedMessage) }} />
       : <>
         {archivedLatest.length > 0 && (
@@ -148,10 +150,30 @@ export function Rubrics({ workspace, commit, deviceReady, imageReady = false }: 
               ? 'Archived rubrics stay hidden from script pickers while remaining available in the class picture and history.'
               : 'Create a rubric manually, photograph a printed mark scheme, or upload a PDF, DOCX, or TXT file.'}</p>
             {!showArchived && <div className="button-row">
-              <button className="button primary" onClick={() => setEditing({ rubric: freshRubric(project.id) })}><Plus size={18} />Create rubric</button>
-              <button className="button secondary" onClick={() => setCameraOpen(true)}><Camera size={17} />Take photo</button>
-              <button className="button secondary" onClick={() => docPicker.current?.click()}><FileUp size={17} />Upload PDF / DOCX / TXT</button>
+              <button type="button" className="button primary" onClick={() => setEditing({ rubric: freshRubric(project.id) })}><Plus size={18} />Create rubric</button>
+              <button type="button" className="button secondary" onClick={() => setCameraOpen(true)}><Camera size={17} />Take photo</button>
+              <button type="button" className="button secondary" onClick={() => docPicker.current?.click()}><FileUp size={17} />Upload PDF / DOCX / TXT</button>
             </div>}
+            {!showArchived && (
+              <div className="template-bar">
+                <span className="preset-label">Or start from a template</span>
+                <div className="template-chips">
+                  {STARTER_RUBRICS.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      className="button secondary compact-btn"
+                      onClick={() => {
+                        setNotice('')
+                        setEditing({ rubric: createRubricFromTemplate(template.id, project.id) })
+                      }}
+                    >
+                      {template.label} <small className="muted">· {template.summary}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div> : visibleRubrics.map((rubric) => {
             const olderScripts = unfinalisedScriptsOnOlderVersions(workspace, rubric.series)
             const inSeriesUse = seriesInUse(workspace, rubric.series)
@@ -321,13 +343,14 @@ export function Rubrics({ workspace, commit, deviceReady, imageReady = false }: 
   </>
 }
 
-function RubricEditor({ original, initialFile, workspace, commit, deviceReady, imageReady, close }: {
+function RubricEditor({ original, initialFile, workspace, commit, deviceReady, imageReady, onAllowCloud, close }: {
   original: Rubric
   initialFile?: File
   workspace: Workspace
   commit: Commit
   deviceReady: boolean
   imageReady: boolean
+  onAllowCloud?: () => Promise<void>
   close: (savedMessage?: string) => void
 }) {
   const [rubric, setRubric] = useState(original)
@@ -635,6 +658,28 @@ function RubricEditor({ original, initialFile, workspace, commit, deviceReady, i
             <FileUp size={16} />Upload PDF / DOCX / TXT
           </button>
         </div>
+        {!editingExisting && !hasFilledCriteria(rubric) && !rubric.title.trim() && (
+          <div className="template-bar inline">
+            <span className="preset-label">Quick starter templates</span>
+            <div className="template-chips">
+              {STARTER_RUBRICS.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="button subtle compact-btn"
+                  disabled={busy || importLoading}
+                  onClick={() => {
+                    const loaded = createRubricFromTemplate(template.id, project.id)
+                    setRubric((current) => ({ ...loaded, id: current.id, series: current.series, version: current.version }))
+                    setImportNotice(`Loaded "${template.label}" starter template. Customise the title, question, and criteria below.`)
+                  }}
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {importLoading && <Loading>Reading imported rubric…</Loading>}
@@ -741,6 +786,14 @@ function RubricEditor({ original, initialFile, workspace, commit, deviceReady, i
         <button type="button" className="button secondary" disabled={busy || !cloudFallbackReady}
           onClick={() => setAuditPreview(true)}><Cloud size={17} />Audit rubric quality (Cloud AI)</button>
       </div>}
+      {!workspace.allowCloud && cloudConfigured && onAllowCloud && (
+        <Notice>
+          <div className="inline-confirm">
+            <span>Cloud AI is off. Allow it to audit rubric quality, draft cloud key points, or draft rubrics without on-device AI (only rubric text is sent — never student scripts).</span>
+            <AllowCloudButton onAllowCloud={onAllowCloud} />
+          </div>
+        </Notice>
+      )}
       {audit && workspace.allowCloud && <div className="audit-card">
         <div className="section-heading">
           <h3>Rubric quality audit</h3>

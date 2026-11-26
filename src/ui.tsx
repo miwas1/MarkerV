@@ -81,6 +81,24 @@ export function useAction() {
   }
 }
 
+export function AllowCloudButton({ onAllowCloud, label = 'Allow cloud AI' }: {
+  onAllowCloud?: () => Promise<void>
+  label?: string
+}) {
+  const { run, busy } = useAction()
+  if (!onAllowCloud) return null
+  return (
+    <button
+      type="button"
+      className="button secondary compact-btn nowrap-btn"
+      disabled={busy}
+      onClick={() => { void run(async () => onAllowCloud()) }}
+    >
+      <Cloud size={15} aria-hidden="true" />{busy ? 'Enabling…' : label}
+    </button>
+  )
+}
+
 export function useObjectUrl(blob?: Blob) {
   const [url, setUrl] = useState('')
   useEffect(() => {

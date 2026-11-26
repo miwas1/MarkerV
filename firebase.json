@@ -8,9 +8,13 @@
       { "source": "/assets/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
     ]
   },
+  "auth": {
+    "providers": {
+      "emailPassword": true
+    }
+  },
   "remoteconfig": { "template": "remoteconfig.template.json" },
   "firestore": {
-    "database": "ai-studio-markingassistant-8fa89a2a-307e-47b6-8085-eef88b18d9f3",
     "rules": "firestore.rules"
   }
 }

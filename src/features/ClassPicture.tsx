@@ -1,4 +1,4 @@
-import { BarChart3, Cloud, Info } from 'lucide-react'
+import { BarChart3, Cloud, FileSpreadsheet, Info } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cloudConfigured, teachingSummary, type TeachingContext } from '../ai/firebase'
@@ -11,9 +11,11 @@ import {
   levelText,
   type Workspace,
 } from '../domain/workspace'
-import { Loading, Modal, Notice, Source, useAction } from '../ui'
+import { AllowCloudButton, Loading, Modal, Notice, Source, useAction } from '../ui'
 
-export function ClassPicture({ workspace, base }: { workspace: Workspace; base: string }) {
+export function ClassPicture({ workspace, base, onAllowCloud }: {
+  workspace: Workspace; base: string; onAllowCloud?: () => Promise<void>
+}) {
   const [selection, setSelection] = useState('')
   const [preview, setPreview] = useState(false)
   const [summary, setSummary] = useState<Awaited<ReturnType<typeof teachingSummary>>>()
@@ -48,7 +50,10 @@ export function ClassPicture({ workspace, base }: { workspace: Workspace; base: 
   const count = rows[0]?.total ?? 0
 
   return <>
-    <header className="page-heading"><div><h1>Class picture</h1><p>Project: <strong>{project.name}</strong> · See which criteria need more teaching time.</p></div></header>
+    <header className="page-heading">
+      <div><h1>Class picture</h1><p>Project: <strong>{project.name}</strong> · See which criteria need more teaching time.</p></div>
+      {rubric && <Link className="button secondary" to={base + '/results'}><FileSpreadsheet size={16} aria-hidden="true" />Results &amp; export</Link>}
+    </header>
     {!rubric ? <section className="panel empty-state"><span className="empty-icon"><BarChart3 size={27} /></span><h2>No assessments in {project.name} yet</h2>
       <p>Create a rubric and finalise scripts in this project to see class results.</p><Link className="button primary" to={base + '/rubric'}>Go to rubrics</Link>
     </section> : <>
@@ -96,7 +101,15 @@ export function ClassPicture({ workspace, base }: { workspace: Workspace; base: 
         {error && <Notice error>{error}</Notice>}
         {!eligible.length ? <Notice>Cloud summaries require at least 10 finalised scripts, with at least 3 scripts in each score group for a criterion.</Notice> :
           !cloudConfigured ? <Notice>Set up Firebase App Check to enable cloud summaries. Your class counts stay available.</Notice> :
-            !workspace.allowCloud ? <Notice>Cloud AI is off. <Link to="/settings">Open settings</Link></Notice> : null}
+            !workspace.allowCloud ? <Notice>
+              <div className="inline-confirm">
+                <span>Cloud AI is off. Teaching plans send only anonymous aggregate counts and rubric criteria.</span>
+                <div className="button-row">
+                  <AllowCloudButton onAllowCloud={onAllowCloud} />
+                  <Link className="text-link" to="/settings">Settings</Link>
+                </div>
+              </div>
+            </Notice> : null}
         {busy ? <div className="button-row"><Loading>Preparing teaching plan…</Loading>
           <button className="button subtle" onClick={cancel}>Cancel</button></div> :
           <button className="button secondary" disabled={!eligible.length || !workspace.allowCloud || !cloudConfigured}

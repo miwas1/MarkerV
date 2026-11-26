@@ -1,7 +1,7 @@
 import { ClipboardCopy, Cloud, Download, HardDrive, Layers, Trash2 } from 'lucide-react'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { benchmarkCloudMark, canRunAi, cloudModel, draftMarkingBrief, mark, type AiTask } from '../ai/firebase'
+import { benchmarkCloudMark, canRunAi, cloudConfigured, cloudModel, draftMarkingBrief, mark, type AiTask } from '../ai/firebase'
 import { benchmarkCases, quickBenchmarkCases } from '../benchmark/pack'
 import { clearAiLog, formatBytes, formatSeconds, readAiLog, subscribeAiLog, summariseCalls, type AiCallRecord } from '../domain/aiLog'
 import { markingBriefPayload } from '../domain/aiSchemas'
@@ -15,7 +15,7 @@ import {
   type BenchmarkOutcome,
 } from '../domain/benchmark'
 import { downloadFile } from '../domain/photo'
-import { Loading, Modal, Notice, Source, useAction } from '../ui'
+import { AllowCloudButton, Loading, Modal, Notice, Source, useAction } from '../ui'
 
 const TASK_LABELS: Record<AiTask, string> = {
   transcribe: 'Transcribe script',
@@ -85,8 +85,8 @@ function noteFor(call: AiCallRecord) {
   ].filter(Boolean).join(' · ')
 }
 
-export default function Inspector({ deviceReady, allowCloud, online }: {
-  deviceReady: boolean; allowCloud: boolean; online: boolean
+export default function Inspector({ deviceReady, allowCloud, online, onAllowCloud }: {
+  deviceReady: boolean; allowCloud: boolean; online: boolean; onAllowCloud?: () => Promise<void>
 }) {
   const calls = useSyncExternalStore(subscribeAiLog, readAiLog)
   const session = summariseCalls(calls)
@@ -217,7 +217,15 @@ export default function Inspector({ deviceReady, allowCloud, online }: {
       </label>
       {!deviceReady && <Notice>On-device AI is not ready in this browser. <Link to="/settings">Set it up in Settings</Link> to run the on-device benchmarks.</Notice>}
       {!cloudReady && <Notice>{online
-        ? <>Cloud AI is off or not configured. <Link to="/settings">Open settings</Link> to run the cloud brief and the cloud baseline.</>
+        ? cloudConfigured && !allowCloud
+          ? <div className="inline-confirm">
+            <span>Cloud AI is off. Allow it to run the rubric-only cloud brief and fictional cloud baseline.</span>
+            <div className="button-row">
+              <AllowCloudButton onAllowCloud={onAllowCloud} />
+              <Link className="text-link" to="/settings">Settings</Link>
+            </div>
+          </div>
+          : <>Cloud AI is not configured. <Link to="/settings">Open settings</Link> to inspect Cloud AI configuration.</>
         : 'The cloud brief and the cloud baseline need a connection. The plain on-device run works offline.'}</Notice>}
       {error && <Notice error>{error}</Notice>}
       {busy && progress ? <div className="button-row">

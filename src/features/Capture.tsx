@@ -1,8 +1,9 @@
 import { Camera, Contrast, Crop as CropIcon, FileImage, FileText, FileUp, RotateCw, Save, ZoomIn } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { CameraModal } from '../components/CameraModal'
 import { detectFileKind, DOCUMENT_ACCEPT, extractDocument, type DocumentFormat } from '../domain/document'
+import { defaultRubricForCapture } from '../domain/onboarding'
 import { hashPhoto, noCrop, preparePhotoWithMetrics, type Crop } from '../domain/photo'
 import { addScript, latestRubrics, MAX_ANSWER, scriptName, setActiveProject, type ScriptSource, type Workspace } from '../domain/workspace'
 import { Loading, Modal, Notice, useAction, useObjectUrl, type Commit } from '../ui'
@@ -53,8 +54,10 @@ export function Capture({ workspace, commit, initialFile, consumeFile }: {
   const [saved, setSaved] = useState('')
   const [duplicate, setDuplicate] = useState('')
   const [projectId, setProjectId] = useState(workspace.activeProjectId)
-  const [assignment, setAssignment] = useState('')
+  const [assignment, setAssignment] = useState(() => defaultRubricForCapture(workspace, workspace.activeProjectId))
+  const [confirmNow, setConfirmNow] = useState(true)
   const [text, setText] = useState('')
+  const confirmHelpId = useId()
   const [cameraOpen, setCameraOpen] = useState(false)
   const { busy, error, run } = useAction()
   const photoInput = useRef<HTMLInputElement>(null)
@@ -66,7 +69,7 @@ export function Capture({ workspace, commit, initialFile, consumeFile }: {
 
   useEffect(() => {
     setProjectId(workspace.activeProjectId)
-    setAssignment('')
+    setAssignment(defaultRubricForCapture(workspace, workspace.activeProjectId))
   }, [workspace.activeProjectId])
 
   const handleSelectedFile = (next: File | undefined, sourceOverride?: ScriptSource) => {
@@ -202,6 +205,7 @@ export function Capture({ workspace, commit, initialFile, consumeFile }: {
           sourceFile: sourceFile,
           transcript: hasPhotoDraft ? '' : text.trim(),
           rubricId: assignment || undefined,
+          confirmed: !hasPhotoDraft && confirmNow,
         })
       })
       if (!active()) return
@@ -356,21 +360,44 @@ export function Capture({ workspace, commit, initialFile, consumeFile }: {
 
       <div className="fields-inline-even">
         <label className="field"><span>Project</span><select aria-label="Project" value={projectId} onChange={(event) => {
-          setProjectId(event.target.value)
-          setAssignment('')
+          const nextProjectId = event.target.value
+          setProjectId(nextProjectId)
+          setAssignment(defaultRubricForCapture(workspace, nextProjectId))
         }}>
           {workspace.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select></label>
         <label className="field"><span>Rubric</span><select aria-label="Rubric" value={assignment} onChange={(event) => setAssignment(event.target.value)}>
           <option value="">Assign later</option>
           {availableRubrics.map((rubric) => <option key={rubric.id} value={rubric.id}>{rubric.title} · v{rubric.version}</option>)}
-        </select></label>
+        </select>
+        {availableRubrics.length === 0 && (
+          <span className="field-hint">
+            No rubric in this project yet. <Link to="/workspace/rubric">Create or load a rubric</Link>
+          </span>
+        )}
+        </label>
       </div>
+      {!hasPhotoDraft && (
+        <div className="capture-confirm-option">
+          <label className="switch-row compact-switch">
+            <input
+              type="checkbox"
+              checked={confirmNow}
+              aria-describedby={confirmHelpId}
+              onChange={(event) => setConfirmNow(event.target.checked)}
+            />
+            <span>Ready to mark immediately (student identifiers removed)</span>
+          </label>
+          <p id={confirmHelpId} className="muted field-hint">
+            Skip the extra transcript-confirmation step so you can suggest or enter marks right away.
+          </p>
+        </div>
+      )}
       {error && <Notice error>{error}</Notice>}
       <footer className="form-actions">
         <Link className="button secondary" to={scriptsPath}>Cancel</Link>
-        <button className="button primary" disabled={busy || docLoading || (hasPhotoDraft ? !image : !text.trim())} onClick={() => { void save() }}>
-          <Save size={17} />{busy ? 'Saving…' : 'Save draft'}
+        <button type="button" className="button primary" disabled={busy || docLoading || (hasPhotoDraft ? !image : !text.trim())} onClick={() => { void save() }}>
+          <Save size={17} />{busy ? 'Saving…' : !hasPhotoDraft && confirmNow ? 'Save & start marking' : 'Save draft'}
         </button>
       </footer>
     </section>

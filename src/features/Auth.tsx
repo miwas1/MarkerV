@@ -1,7 +1,8 @@
-import { KeyRound, Link2, LogIn, LogOut, Mail, ShieldCheck, UserPlus } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { Eye, EyeOff, FlaskConical, KeyRound, Link2, LogIn, LogOut, Mail, ShieldCheck, UserPlus } from 'lucide-react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/auth'
+import { isProtectedWorkspacePath, resolvePostAuthPath } from '../domain/authGuard'
 import { Loading, Notice } from '../ui'
 
 type AuthMode = 'signin' | 'signup' | 'reset'
@@ -15,11 +16,32 @@ export function AuthPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
+  const passwordHintId = useId()
 
-  const nextPath = (location.state as { from?: string } | null)?.from || '/workspace'
+  useEffect(() => {
+    setMode(location.pathname === '/signup' ? 'signup' : 'signin')
+    setError('')
+    setInfo('')
+  }, [location.pathname])
+
+  const requestedFrom = (location.state as { from?: unknown } | null)?.from
+  const redirectedFromWorkspace = typeof requestedFrom === 'string' && isProtectedWorkspacePath(requestedFrom)
+  const nextPath = resolvePostAuthPath(requestedFrom)
+
+  function switchMode(next: AuthMode) {
+    setMode(next)
+    setError('')
+    setInfo('')
+    if (next === 'signup' && location.pathname !== '/signup') {
+      navigate('/signup', { replace: true, state: location.state })
+    } else if (next === 'signin' && location.pathname !== '/login') {
+      navigate('/login', { replace: true, state: location.state })
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -74,11 +96,7 @@ export function AuthPage() {
         </div>
 
         <div className="account-profile">
-          {user.photoURL ? (
-            <img className="account-avatar" src={user.photoURL} alt="" referrerPolicy="no-referrer" />
-          ) : (
-            <span className="empty-icon"><ShieldCheck size={24} /></span>
-          )}
+          <span className="empty-icon"><ShieldCheck size={24} aria-hidden="true" /></span>
           <div>
             <strong>{user.displayName || 'Lecturer'}</strong>
             <p className="muted">{user.email}</p>
@@ -86,14 +104,15 @@ export function AuthPage() {
         </div>
 
         <Notice>
-          Your lecturer account is ready to generate unique student submission links and receive submissions securely.
+          Your lecturer account unlocks your private marking workspace in this browser and lets you publish student submission links.
         </Notice>
 
         {error && <Notice error>{error}</Notice>}
 
         <div className="button-row">
-          <Link className="button primary" to="/workspace/links"><Link2 size={16} />Submission links</Link>
-          <Link className="button secondary" to="/workspace">Open workspace</Link>
+          <Link className="button primary" to="/workspace">Open workspace</Link>
+          <Link className="button secondary" to="/workspace/links"><Link2 size={16} aria-hidden="true" />Submission links</Link>
+          <Link className="button secondary" to="/sample"><FlaskConical size={16} aria-hidden="true" />Live demo</Link>
           <button
             type="button"
             className="button subtle"
@@ -103,7 +122,7 @@ export function AuthPage() {
               void signOut().finally(() => setBusy(false))
             }}
           >
-            <LogOut size={16} />Sign out
+            <LogOut size={16} aria-hidden="true" />Sign out
           </button>
         </div>
       </section>
@@ -115,24 +134,31 @@ export function AuthPage() {
       <div className="auth-header">
         <img src="/mark.svg" alt="" width={42} height={42} />
         <div>
-          <h1>{mode === 'signup' ? 'Create lecturer account' : mode === 'reset' ? 'Reset password' : 'Lecturer sign in'}</h1>
+          <h1>{mode === 'signup' ? 'Create lecturer account' : mode === 'reset' ? 'Reset password' : 'Sign in to workspace'}</h1>
           <p className="muted">
             {mode === 'signup'
-              ? 'Create an account with your email and password to publish unique student submission links.'
+              ? 'Create your account with email and password to open your private marking workspace.'
               : mode === 'reset'
                 ? 'Enter your email address and we will send a password reset link.'
-                : 'Sign in with your email and password to manage submission links and review incoming student work.'}
+                : 'Sign in with your email and password to access your private marking workspace.'}
           </p>
         </div>
       </div>
 
+      {redirectedFromWorkspace && mode !== 'reset' && (
+        <Notice>
+          Your marking workspace requires an email and password account. Want to look around first?{' '}
+          <Link to="/sample">Try the interactive demo</Link> without signing in.
+        </Notice>
+      )}
+
       {mode !== 'reset' && (
         <div className="segmented" role="tablist" aria-label="Authentication mode">
-          <button type="button" role="tab" aria-pressed={mode === 'signin'} onClick={() => { setMode('signin'); setError(''); setInfo('') }}>
-            <LogIn size={15} />Sign in
+          <button type="button" role="tab" aria-selected={mode === 'signin'} aria-pressed={mode === 'signin'} onClick={() => switchMode('signin')}>
+            <LogIn size={15} aria-hidden="true" />Sign in
           </button>
-          <button type="button" role="tab" aria-pressed={mode === 'signup'} onClick={() => { setMode('signup'); setError(''); setInfo('') }}>
-            <UserPlus size={15} />Create account
+          <button type="button" role="tab" aria-selected={mode === 'signup'} aria-pressed={mode === 'signup'} onClick={() => switchMode('signup')}>
+            <UserPlus size={15} aria-hidden="true" />Create account
           </button>
         </div>
       )}
@@ -143,6 +169,7 @@ export function AuthPage() {
             <span>Full name</span>
             <input
               type="text"
+              name="name"
               autoComplete="name"
               maxLength={80}
               value={name}
@@ -157,7 +184,11 @@ export function AuthPage() {
           <span>Email address</span>
           <input
             type="email"
-            autoComplete="email"
+            name="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@university.edu"
@@ -166,25 +197,43 @@ export function AuthPage() {
         </label>
 
         {mode !== 'reset' && (
-          <label className="field">
-            <span>Password</span>
+          <div className="field">
+            <div className="password-label-row">
+              <label htmlFor="auth-password">Password</label>
+              <button
+                type="button"
+                className="button subtle compact-btn password-toggle-btn"
+                aria-pressed={showPassword}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword((value) => !value)}
+              >
+                {showPassword ? <><EyeOff size={14} aria-hidden="true" />Hide</> : <><Eye size={14} aria-hidden="true" />Show</>}
+              </button>
+            </div>
             <input
-              type="password"
+              id="auth-password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              aria-describedby={mode === 'signup' ? passwordHintId : undefined}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder={mode === 'signup' ? 'At least 6 characters' : 'Enter your password'}
               minLength={6}
               required
             />
-          </label>
+            {mode === 'signup' && (
+              <span id={passwordHintId} className="field-hint">Use at least 6 characters.</span>
+            )}
+          </div>
         )}
 
         {mode === 'signup' && (
           <label className="field">
             <span>Confirm password</span>
             <input
-              type="password"
+              name="confirmPassword"
+              type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
@@ -200,17 +249,17 @@ export function AuthPage() {
 
         <div className="button-row">
           <button type="submit" className="button primary" disabled={busy}>
-            {mode === 'signup' ? <><UserPlus size={16} />Create account</> :
-              mode === 'reset' ? <><Mail size={16} />Send reset link</> :
-                <><KeyRound size={16} />Sign in with email</>}
+            {mode === 'signup' ? <><UserPlus size={16} aria-hidden="true" />Create account</> :
+              mode === 'reset' ? <><Mail size={16} aria-hidden="true" />Send reset link</> :
+                <><KeyRound size={16} aria-hidden="true" />Sign in with email</>}
           </button>
           {mode === 'signin' && (
-            <button type="button" className="button subtle" disabled={busy} onClick={() => { setMode('reset'); setError(''); setInfo('') }}>
+            <button type="button" className="button subtle" disabled={busy} onClick={() => switchMode('reset')}>
               Forgot password?
             </button>
           )}
           {mode === 'reset' && (
-            <button type="button" className="button subtle" disabled={busy} onClick={() => { setMode('signin'); setError(''); setInfo('') }}>
+            <button type="button" className="button subtle" disabled={busy} onClick={() => switchMode('signin')}>
               Back to sign in
             </button>
           )}
@@ -218,7 +267,9 @@ export function AuthPage() {
       </form>
 
       <div className="auth-footer">
-        <Link className="text-link" to="/workspace">Continue locally without signing in</Link>
+        <Link className="text-link" to="/sample">
+          <FlaskConical size={15} aria-hidden="true" />Explore interactive demo without signing in
+        </Link>
       </div>
     </section>
   )

@@ -1,39 +1,27 @@
 import { Activity, Cloud, HardDrive, Layers, LogIn, LogOut, ShieldCheck, Trash2, UserCircle2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { cloudConfigured, cloudModel, configured, firebaseProjectId, setupDevice, type DeviceStatus } from '../ai/firebase'
+import { cloudConfigured, cloudModel, configured, firebaseProjectId, type DeviceStatus } from '../ai/firebase'
 import { useAuth } from '../auth/auth'
 import { DeviceAiHelper } from '../components/DeviceAiHelper'
 import { newWorkspace, type Workspace } from '../domain/workspace'
-import { Loading, Modal, Notice, useAction, type Commit } from '../ui'
-
-const statusText = {
-  available: 'Ready',
-  downloadable: 'Download available',
-  downloading: 'Downloading',
-  unavailable: 'Unavailable in this browser',
-} satisfies Record<DeviceStatus, string>
+import { Modal, Notice, useAction, type Commit } from '../ui'
 
 export function Settings({ workspace, commit, text, image, refresh }: {
   workspace: Workspace; commit: Commit; text: DeviceStatus; image: DeviceStatus; refresh: () => Promise<void>
 }) {
   const { user, signOut } = useAuth()
-  const [progress, setProgress] = useState<number>()
   const [confirm, setConfirm] = useState(false)
   const { run, busy, error } = useAction()
-
-  function setup(multimodal: boolean) {
-    void run(async (active) => {
-      setProgress(0)
-      try {
-        await setupDevice(multimodal, (value) => { if (active()) setProgress(Math.min(1, Math.max(0, value))) })
-      } catch {
-        throw new Error('Could not set up the model. Check Chrome’s current hardware, storage and network requirements.')
-      } finally {
-        if (active()) { setProgress(undefined); await refresh() }
-      }
-    })
-  }
+  const textReady = configured && text === 'available'
+  const imageReady = configured && image === 'available'
+  const readinessBadge = textReady && imageReady
+    ? 'Text & photo ready'
+    : textReady
+      ? 'Text AI ready'
+      : configured && (text === 'downloadable' || image === 'downloadable')
+        ? '1-click download ready'
+        : 'Manual marking available'
 
   return <>
     <header className="page-heading"><div><h1>Privacy & settings</h1><p>Manage account connections, local AI, cloud permissions and data saved in this browser.</p></div></header>
@@ -41,18 +29,18 @@ export function Settings({ workspace, commit, text, image, refresh }: {
       <div className="section-heading">
         <h2><UserCircle2 size={19} />Lecturer account</h2>
         <span className="lp-meta-line">
-          {user ? 'Signed in' : 'Local only'}
+          {user ? 'Signed in' : 'Sign in required for workspace'}
         </span>
       </div>
       {user ? (
         <div className="settings-row">
           <div>
             <strong>{user.displayName || 'Signed-in lecturer'}</strong>
-            <p>{user.email} · Ready to publish unique student submission links</p>
+            <p>{user.email} · Signed in to your private workspace and submission links</p>
           </div>
           <div className="button-row">
             <Link className="button secondary" to="/login">Manage account</Link>
-            <button className="button subtle" disabled={busy} onClick={() => { void run(async () => signOut()) }}>
+            <button type="button" className="button subtle" disabled={busy} onClick={() => { void run(async () => signOut()) }}>
               <LogOut size={16} />Sign out
             </button>
           </div>
@@ -61,22 +49,23 @@ export function Settings({ workspace, commit, text, image, refresh }: {
         <div className="settings-row">
           <div>
             <strong>Not signed in</strong>
-            <p>Sign in with your email and password to generate unique student submission links and receive submissions across devices.</p>
+            <p>Sign in with your email and password to open your private marking workspace and publish student submission links. You can still try the interactive demo without signing in.</p>
           </div>
-          <Link className="button primary" to="/login"><LogIn size={16} />Sign in / Sign up</Link>
+          <div className="button-row">
+            <Link className="button primary" to="/login"><LogIn size={16} />Sign in</Link>
+            <Link className="button secondary" to="/signup">Create account</Link>
+          </div>
         </div>
       )}
     </section>
     <section className="panel form-panel">
-      <div className="section-heading"><h2><HardDrive size={19} />On-device AI</h2><span className="badge neutral">{configured && text === 'available' ? 'Ready' : 'Manual marking available'}</span></div>
-      <p>Compatible desktop Chrome can transcribe photos and suggest marks locally. Phones support capture and manual review.</p>
+      <div className="section-heading">
+        <h2><HardDrive size={19} />On-device AI</h2>
+        <span className={'badge ' + (textReady ? 'badge-device' : 'neutral')}>{readinessBadge}</span>
+      </div>
+      <p>Compatible desktop Chrome marks scripts and drafts feedback locally with 0 bytes sent to cloud AI. Phones and other browsers support capture, manual review, and the live sample.</p>
       {!configured && <Notice>Set Firebase configuration in the app environment to connect AI. You can capture, mark and practise manually now.</Notice>}
-      <DeviceAiHelper text={text} image={image} refresh={refresh} />
-      <div className="settings-row"><div><strong>Text</strong><p>{statusText[text]}</p></div>
-        <button className="button secondary" disabled={busy || !configured || text === 'unavailable'} onClick={() => setup(false)}>Set up text AI</button></div>
-      <div className="settings-row"><div><strong>Photos</strong><p>{statusText[image]}</p></div>
-        <button className="button secondary" disabled={busy || !configured || image === 'unavailable'} onClick={() => setup(true)}>Set up photo AI</button></div>
-      {progress !== undefined && <><Loading>Preparing the device model…</Loading><progress value={progress} max={1} aria-label="Device model download" /></>}
+      <DeviceAiHelper text={text} image={image} refresh={refresh} showStatusRows />
     </section>
     <section className="panel form-panel">
       <div className="section-heading"><h2><Cloud size={19} />Cloud AI</h2></div>
@@ -126,11 +115,13 @@ export function Settings({ workspace, commit, text, image, refresh }: {
       <p className="muted">Cloud model: <code>{cloudModel}</code>{firebaseProjectId ? <> · Project: <code>{firebaseProjectId}</code></> : null}</p>
       <Link className="button secondary" to="/inspector"><Activity size={16} />Open AI inspector</Link>
     </section>
-    <section className="panel form-panel">
-      <div className="section-heading"><h2><ShieldCheck size={19} />Local data &amp; optional dropbox</h2></div>
-      <p>Your workspace is saved locally in this browser profile (IndexedDB). Optional submission links work differently: answers students send through a link are stored online in your own Firestore dropbox, with any suggested marks you save on them, until you delete them. Importing a submission copies it into this browser and leaves the original in the dropbox. Nothing in the dropbox is sent to cloud AI.</p>
-      <button className="button secondary" disabled={busy || !(workspace.scripts.length || workspace.rubrics.length)} onClick={() => setConfirm(true)}><Trash2 size={17} />Clear workspace data</button>
-    </section>
+    {user && (
+      <section className="panel form-panel">
+        <div className="section-heading"><h2><ShieldCheck size={19} />Local data &amp; optional dropbox</h2></div>
+        <p>Your workspace is saved locally in this browser profile (IndexedDB). Optional submission links work differently: answers students send through a link are stored online in your own Firestore dropbox, with any suggested marks you save on them, until you delete them. Importing a submission copies it into this browser and leaves the original in the dropbox. Nothing in the dropbox is sent to cloud AI.</p>
+        <button type="button" className="button secondary" disabled={busy || !(workspace.scripts.length || workspace.rubrics.length)} onClick={() => setConfirm(true)}><Trash2 size={17} />Clear workspace data</button>
+      </section>
+    )}
     {error && <Notice error>{error}</Notice>}
     {confirm && <Modal title="Clear workspace data?" onClose={() => setConfirm(false)}>
       <p>All private scripts, rubrics, marks and feedback in this browser will be deleted. Files you exported stay where you saved them, and submissions in your Firestore dropbox are not affected.</p>

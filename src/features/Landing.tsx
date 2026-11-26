@@ -233,8 +233,8 @@ export function Landing({ deviceReady }: { deviceReady: boolean }) {
           </nav>
 
           <div className="lp-header-action">
-            <Link to="/workspace" className="button primary lp-cta-compact">
-              Open workspace
+            <Link to={user ? '/workspace' : '/login'} className="button primary lp-cta-compact">
+              {user ? 'Open workspace' : 'Sign in'}
             </Link>
           </div>
         </div>
@@ -265,11 +265,11 @@ export function Landing({ deviceReady }: { deviceReady: boolean }) {
                 </p>
 
                 <div className="lp-hero-actions">
-                  <Link to="/workspace" className="button primary lp-primary-btn">
-                    Open workspace<ArrowRight size={16} aria-hidden="true" />
+                  <Link to={user ? '/workspace' : '/login'} className="button primary lp-primary-btn">
+                    {user ? 'Open workspace' : 'Sign in to workspace'}<ArrowRight size={16} aria-hidden="true" />
                   </Link>
                   <Link to="/sample" className="button secondary lp-secondary-btn">
-                    Explore live sample
+                    Try interactive demo
                   </Link>
                 </div>
 
@@ -282,8 +282,8 @@ export function Landing({ deviceReady }: { deviceReady: boolean }) {
                     </>
                   ) : (
                     <>
-                      No account required for local marking.{' '}
-                      <Link to="/login">Sign in with email</Link> to publish optional student submission links (stored in your private Firestore dropbox).
+                      Email &amp; password sign-in protects your private workspace.{' '}
+                      <Link to="/signup">Create an account</Link> or explore the live demo right away with no account.
                     </>
                   )}
                 </p>
@@ -453,20 +453,20 @@ export function Landing({ deviceReady }: { deviceReady: boolean }) {
           <div className="lp-container">
             <div className="lp-closing-band">
               <div className="lp-closing-copy">
-                <h2 className="lp-closing-title">Start marking in a private local workspace.</h2>
+                <h2 className="lp-closing-title">Start marking in your private workspace.</h2>
                 <p>
-                  Create your first project and rubric in seconds. They are stored locally in this browser. Optional
-                  submission links store student answers online in your own Firestore dropbox.
+                  Sign in with email and password to create projects, rubrics, and optional submission links — or try the
+                  preloaded interactive demo outside the workspace first.
                 </p>
               </div>
               <div className="lp-closing-actions">
-                <Link to="/workspace" className="button primary lp-primary-btn">
-                  Open workspace<ArrowRight size={16} aria-hidden="true" />
+                <Link to={user ? '/workspace' : '/signup'} className="button primary lp-primary-btn">
+                  {user ? 'Open workspace' : 'Create account'}<ArrowRight size={16} aria-hidden="true" />
                 </Link>
                 <div className="lp-closing-links">
-                  <Link to="/sample">Try live sample</Link>
+                  <Link to="/sample">Try interactive demo</Link>
                   <span aria-hidden="true">·</span>
-                  <Link to={user ? '/settings' : '/signup'}>{user ? 'Privacy & settings' : 'Create account'}</Link>
+                  <Link to={user ? '/settings' : '/login'}>{user ? 'Privacy & settings' : 'Sign in'}</Link>
                 </div>
               </div>
             </div>
@@ -483,12 +483,17 @@ export function Landing({ deviceReady }: { deviceReady: boolean }) {
             </p>
           </div>
           <nav className="lp-footer-links" aria-label="Footer navigation">
-            <Link to="/workspace/projects">Projects</Link>
-            <Link to="/workspace">Scripts</Link>
-            <Link to="/workspace/rubric">Rubrics</Link>
-            <Link to="/workspace/class">Class picture</Link>
-            <Link to="/sample">Sample</Link>
+            {user && (
+              <>
+                <Link to="/workspace/projects">Projects</Link>
+                <Link to="/workspace">Scripts</Link>
+                <Link to="/workspace/rubric">Rubrics</Link>
+                <Link to="/workspace/class">Class picture</Link>
+              </>
+            )}
+            <Link to="/sample">Interactive demo</Link>
             <Link to="/practice">Practice</Link>
+            <Link to="/inspector">AI inspector</Link>
             <Link to="/settings">Settings</Link>
             <Link to="/login">{user ? 'Account' : 'Sign in'}</Link>
           </nav>

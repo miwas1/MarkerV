@@ -1041,6 +1041,7 @@ function SubmissionInbox({
         id: scriptId,
         projectId: targetProjectId,
         rubricId: matchingRubric,
+        candidateRef: sub.submitterLabel?.trim() || undefined,
         photo: photoBlob,
         sourceFile: { name: sourceLabel.slice(0, 140), kind: 'submission-link' },
         transcript,

@@ -5,6 +5,7 @@ export const MAX_SCORE = 10
 export const MAX_ANSWER = 5500
 export const MAX_FEEDBACK = 600
 export const MAX_KEY_POINTS = 600
+export const MAX_CANDIDATE_REF = 100
 export const DEFAULT_PROJECT_ID = 'default-project'
 
 export type Project = { id: string; name: string; description?: string; createdAt: number }
@@ -49,6 +50,8 @@ export type Script = {
   createdAt: number
   projectId?: string
   rubricId?: string
+  /** Optional local-only candidate/student identifier for post-marking collation. Hidden during blind marking and never sent to AI. */
+  candidateRef?: string
   photo?: Blob
   photoHash?: string
   sourceFile?: ScriptSource
@@ -427,13 +430,15 @@ export function updateScript(workspace: Workspace, id: string, revision: number,
 export function addScript(
   workspace: Workspace,
   draft: Pick<Script, 'id' | 'projectId' | 'photo' | 'photoHash' | 'sourceFile' | 'transcript' | 'rubricId'> &
-    Partial<Pick<Script, 'confirmed' | 'marks' | 'suggestions' | 'provenance'>>,
+    Partial<Pick<Script, 'confirmed' | 'marks' | 'suggestions' | 'provenance' | 'candidateRef'>>,
 ): Workspace {
   if (workspace.scripts.some((script) => script.id === draft.id)) return workspace
   const projectId = draft.projectId ?? workspace.activeProjectId ?? DEFAULT_PROJECT_ID
+  const cleanCandidate = draft.candidateRef?.trim().slice(0, MAX_CANDIDATE_REF)
   const script: Script = {
     ...draft,
     projectId,
+    candidateRef: cleanCandidate || undefined,
     sequence: workspace.nextSequence,
     revision: 0,
     createdAt: Date.now(),

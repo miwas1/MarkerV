@@ -1,21 +1,47 @@
-import { Camera, ChevronRight, ClipboardCheck, FileImage, FilePlus2, Files, FileText, FileUp, Flag, Link2, ListChecks, PencilLine, Search } from 'lucide-react'
+import { Camera, CheckCircle2, ChevronRight, ClipboardCheck, FileImage, FilePlus2, Files, FileText, FileUp, Flag, FlaskConical, HardDrive, Link2, ListChecks, PencilLine, Search, Sparkles, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { configured, setupDevice, type DeviceStatus } from '../ai/firebase'
 import { CameraModal } from '../components/CameraModal'
 import { DOCUMENT_ACCEPT } from '../domain/document'
-import { activeProjectOf, earned, projectRubrics, projectScripts, scriptName, scriptSourceLabel, statusOf, total, type Workspace } from '../domain/workspace'
+import { createRubricFromTemplate } from '../domain/onboarding'
+import { activeProjectOf, earned, latestRubrics, projectRubrics, projectScripts, scriptName, scriptSourceLabel, statusOf, total, type Workspace } from '../domain/workspace'
+import { Loading, Notice, useAction, type Commit } from '../ui'
 
-export function Dashboard({ workspace, onFile, base = '/workspace', sample = false }: {
-  workspace: Workspace; onFile?: (file: File) => void; base?: string; sample?: boolean
+export function Dashboard({
+  workspace,
+  commit,
+  onFile,
+  textStatus,
+  imageStatus,
+  refreshDevice,
+  online = true,
+  base = '/workspace',
+  sample = false,
+}: {
+  workspace: Workspace
+  commit?: Commit
+  onFile?: (file: File) => void
+  textStatus?: DeviceStatus
+  imageStatus?: DeviceStatus
+  refreshDevice?: () => Promise<void>
+  online?: boolean
+  base?: string
+  sample?: boolean
 }) {
   const photoPicker = useRef<HTMLInputElement>(null)
   const docPicker = useRef<HTMLInputElement>(null)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [filter, setFilter] = useState('All scripts')
   const [search, setSearch] = useState('')
+  const [quickstartDismissed, setQuickstartDismissed] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<number>()
+  const [starterNotice, setStarterNotice] = useState('')
+  const quickAction = useAction()
   const project = activeProjectOf(workspace)
   const scripts = projectScripts(workspace, project.id)
   const rubrics = projectRubrics(workspace, project.id)
+  const activeRubrics = latestRubrics(workspace, project.id)
   const count = scripts.length
   const finalised = scripts.filter((script) => script.finalisedAt).length
   const pending = count - finalised
@@ -36,6 +62,37 @@ export function Dashboard({ workspace, onFile, base = '/workspace', sample = fal
     if (file) onFile?.(file)
   }
   const recent = scripts.find((script) => !script.finalisedAt)
+  const textReady = configured && textStatus === 'available'
+  const canDownloadText = configured && textStatus === 'downloadable' && online
+  const isDownloadingAi = textStatus === 'downloading' || imageStatus === 'downloading'
+  const hasRubric = activeRubrics.length > 0
+  const hasScripts = count > 0
+  const showQuickstart = !sample && !quickstartDismissed && (!hasRubric || !hasScripts)
+
+  function enableDeviceTextAi() {
+    void quickAction.run(async (active) => {
+      setDownloadProgress(0)
+      try {
+        await setupDevice(false, (value) => { if (active()) setDownloadProgress(Math.min(1, Math.max(0, value))) })
+      } catch {
+        throw new Error('Could not download Chrome’s on-device model. Ensure you have at least 22 GB free storage and a stable connection.')
+      } finally {
+        if (active()) {
+          setDownloadProgress(undefined)
+          await refreshDevice?.()
+        }
+      }
+    })
+  }
+
+  function loadStarterRubric() {
+    if (!commit) return
+    void quickAction.run(async () => {
+      const starter = createRubricFromTemplate('short-answer', project.id)
+      await commit((current) => ({ ...current, rubrics: [...current.rubrics, starter] }))
+      setStarterNotice(`Loaded starter rubric "${starter.title}" in ${project.name}. You can edit it anytime under Rubrics.`)
+    })
+  }
 
   return <div className="dashboard">
     <header className="page-heading dashboard-heading">
@@ -44,6 +101,117 @@ export function Dashboard({ workspace, onFile, base = '/workspace', sample = fal
       {!sample && recent && <Link className="button secondary desktop-action" to={base + '/scripts/' + recent.id}><PencilLine size={17} />Continue marking</Link>}
       {sample && <Link className="button secondary" to={base + '/practice'}>Open sample feedback</Link>}
     </header>
+    {starterNotice && <Notice>{starterNotice}</Notice>}
+    {showQuickstart && (
+      <section className="panel form-panel quickstart-card" aria-labelledby="quickstart-title">
+        <div className="section-heading">
+          <div>
+            <h2 id="quickstart-title">Quick setup for {project.name}</h2>
+            <p>Three steps to start marking privately in this browser — or explore the preloaded sample first.</p>
+          </div>
+          <div className="button-row">
+            <Link className="button subtle compact-btn" to="/sample"><FlaskConical size={15} aria-hidden="true" />Try live sample</Link>
+            <button
+              type="button"
+              className="icon-button compact-icon-btn"
+              aria-label="Dismiss quick setup"
+              onClick={() => setQuickstartDismissed(true)}
+            >
+              <X size={17} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <ol className="quickstart-steps">
+          <li className={'quickstart-step' + (textReady ? ' done' : '')}>
+            <span className="quickstart-marker" aria-hidden="true">
+              {textReady ? <CheckCircle2 size={18} /> : '1'}
+            </span>
+            <div className="quickstart-body">
+              <strong>{textReady ? 'On-device AI ready' : 'Check AI setup'}</strong>
+              <p>
+                {textReady
+                  ? 'Gemini Nano is ready in this browser. Private script marking works offline with 0 bytes sent to cloud AI.'
+                  : canDownloadText
+                    ? 'Chrome’s local text model is available for a one-click download so private marking runs offline.'
+                    : isDownloadingAi
+                      ? 'Chrome is downloading the local AI model in the background…'
+                      : 'Manual marking works now. Use desktop Chrome for private on-device AI, or try Cloud/Hybrid AI in the live sample.'}
+              </p>
+              {downloadProgress !== undefined && (
+                <>
+                  <Loading>Downloading on-device text model…</Loading>
+                  <progress value={downloadProgress} max={1} aria-label="On-device text model download" />
+                </>
+              )}
+              {!textReady && downloadProgress === undefined && (
+                <div className="button-row">
+                  {canDownloadText ? (
+                    <button type="button" className="button primary compact-btn" disabled={quickAction.busy} onClick={enableDeviceTextAi}>
+                      <HardDrive size={15} aria-hidden="true" />Enable on-device AI
+                    </button>
+                  ) : (
+                    <Link className="button secondary compact-btn" to="/settings">Open AI setup</Link>
+                  )}
+                </div>
+              )}
+            </div>
+          </li>
+
+          <li className={'quickstart-step' + (hasRubric ? ' done' : '')}>
+            <span className="quickstart-marker" aria-hidden="true">
+              {hasRubric ? <CheckCircle2 size={18} /> : '2'}
+            </span>
+            <div className="quickstart-body">
+              <strong>{hasRubric ? 'Rubric ready' : 'Create or load a rubric'}</strong>
+              <p>
+                {hasRubric
+                  ? `${activeRubrics.length} ${activeRubrics.length === 1 ? 'rubric' : 'rubrics'} ready in ${project.name}. New scripts will select it automatically.`
+                  : 'Define your marking criteria first, import a mark scheme file, or load a ready-made starter rubric.'}
+              </p>
+              {!hasRubric && (
+                <div className="button-row">
+                  <Link className="button primary compact-btn" to={base + '/rubric'}>Create rubric</Link>
+                  {commit && (
+                    <button type="button" className="button secondary compact-btn" disabled={quickAction.busy} onClick={loadStarterRubric}>
+                      <Sparkles size={15} aria-hidden="true" />Load starter rubric
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </li>
+
+          <li className={'quickstart-step' + (hasScripts ? ' done' : '')}>
+            <span className="quickstart-marker" aria-hidden="true">
+              {hasScripts ? <CheckCircle2 size={18} /> : '3'}
+            </span>
+            <div className="quickstart-body">
+              <strong>{hasScripts ? 'Scripts added' : 'Add your first script'}</strong>
+              <p>
+                {hasScripts
+                  ? `${count} ${count === 1 ? 'script' : 'scripts'} ready to review in ${project.name}.`
+                  : 'Paste a typed answer, upload a PDF/DOCX/TXT file, photograph a handwritten page, or publish a submission link.'}
+              </p>
+              {!hasScripts && (
+                <div className="button-row">
+                  <Link className="button secondary compact-btn" to={base + '/capture?input=text'}>
+                    <PencilLine size={15} aria-hidden="true" />Paste answer
+                  </Link>
+                  <button type="button" className="button secondary compact-btn" onClick={() => docPicker.current?.click()}>
+                    <FileUp size={15} aria-hidden="true" />Upload file
+                  </button>
+                  <button type="button" className="button secondary compact-btn" onClick={() => setCameraOpen(true)}>
+                    <Camera size={15} aria-hidden="true" />Take photo
+                  </button>
+                </div>
+              )}
+            </div>
+          </li>
+        </ol>
+        {quickAction.error && <Notice error>{quickAction.error}</Notice>}
+      </section>
+    )}
     {!sample && <>
       <input ref={photoPicker} className="visually-hidden" tabIndex={-1} aria-label="Photo file input" type="file" accept="image/*"
         onChange={(event) => selectFile(event.currentTarget)} />
@@ -55,10 +223,10 @@ export function Dashboard({ workspace, onFile, base = '/workspace', sample = fal
           <h2 id="capture-title">Capture or collect scripts</h2>
           <p>Take a photo, upload a PDF/DOCX/TXT file, generate a unique student submission link, or paste a typed response.</p>
           <div className="hero-actions">
-            <button className="button primary" onClick={() => setCameraOpen(true)}><Camera size={18} />Take photo</button>
+            <button type="button" className="button primary" onClick={() => setCameraOpen(true)}><Camera size={18} />Take photo</button>
             <Link className="button secondary" to={base + '/links'}><Link2 size={17} />Submission links</Link>
-            <button className="button secondary" onClick={() => photoPicker.current?.click()}><FileImage size={17} />Choose photo</button>
-            <button className="button secondary" onClick={() => docPicker.current?.click()}><FileUp size={17} />Upload PDF / DOCX / TXT</button>
+            <button type="button" className="button secondary" onClick={() => photoPicker.current?.click()}><FileImage size={17} />Choose photo</button>
+            <button type="button" className="button secondary" onClick={() => docPicker.current?.click()}><FileUp size={17} />Upload PDF / DOCX / TXT</button>
             <Link className="button secondary" to={base + '/capture?input=text'}><PencilLine size={17} />Paste answer</Link>
           </div>
         </div>
@@ -91,7 +259,7 @@ export function Dashboard({ workspace, onFile, base = '/workspace', sample = fal
         {!!count && <label className="search"><Search size={17} /><input aria-label="Search scripts" value={search} placeholder="Search scripts" onChange={(event) => setSearch(event.target.value)} /></label>}
       </div>
       {!!count && <div className="queue-filters" aria-label="Filter scripts">
-        {['All scripts', 'Awaiting review', 'Finalised', ...(scripts.some((script) => script.secondReview) || filter === 'Flagged' ? ['Flagged'] : [])].map((value) => <button key={value} aria-pressed={filter === value}
+        {['All scripts', 'Awaiting review', 'Finalised', ...(scripts.some((script) => script.secondReview) || filter === 'Flagged' ? ['Flagged'] : [])].map((value) => <button type="button" key={value} aria-pressed={filter === value}
           onClick={() => setFilter(value)}>{value}</button>)}
       </div>}
       {items.length ? <ul className="script-list">
