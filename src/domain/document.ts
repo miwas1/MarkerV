@@ -119,6 +119,53 @@ async function extractDocx(file: File): Promise<string> {
   return normalizeExtractedText(blocks.join('\n'))
 }
 
+/** The parts of a pdf.js text item that line joining needs. */
+export type PdfTextItem = { str: string; transform?: number[]; width?: number; hasEOL?: boolean }
+
+/**
+ * Rebuilds the lines of one PDF page from pdf.js text items.
+ *
+ * pdf.js splits text into items at font changes, kerning and ligature glyphs, so "coffee"
+ * set with an "ff" ligature arrives as "co", "ff", "ee" with no gap between them. A space is
+ * added only where the page shows one: a horizontal gap wider than about an eighth of the
+ * font size, or a jump back to the left (a new column on the same baseline). Items with
+ * unknown geometry keep the old behaviour of a separating space.
+ */
+export function pdfTextItemsToLines(items: readonly PdfTextItem[]): string[] {
+  const lines: string[] = []
+  let currentLine = ''
+  let lastY: number | undefined
+  let lastEndX: number | undefined
+
+  for (const item of items) {
+    const t = Array.isArray(item.transform) && item.transform.length >= 6 ? item.transform : undefined
+    const y = t ? Math.round(t[5]) : undefined
+    if (lastY !== undefined && y !== undefined && Math.abs(y - lastY) > 4 && currentLine.trim()) {
+      lines.push(currentLine.trim())
+      currentLine = ''
+      lastEndX = undefined
+    }
+    if (currentLine && item.str && !currentLine.endsWith(' ') && !item.str.startsWith(' ')) {
+      const fontSize = t ? Math.hypot(t[0], t[1]) : 0
+      const gap = t && lastEndX !== undefined ? t[4] - lastEndX : undefined
+      const wordGap = gap === undefined || !(fontSize > 0) || gap > fontSize * 0.12 || gap < -fontSize
+      if (wordGap) currentLine += ' '
+    }
+    currentLine += item.str
+    lastEndX = t && typeof item.width === 'number' && item.width > 0 ? t[4] + item.width : undefined
+    if (item.hasEOL) {
+      if (currentLine.trim()) lines.push(currentLine.trim())
+      currentLine = ''
+      lastY = undefined
+      lastEndX = undefined
+    } else if (y !== undefined) {
+      lastY = y
+    }
+  }
+  if (currentLine.trim()) lines.push(currentLine.trim())
+  return lines
+}
+
 async function extractPdf(file: File): Promise<{ text: string; pageCount: number; previewImage?: Blob }> {
   const [pdfjs, workerModule] = await Promise.all([
     import('pdfjs-dist'),
@@ -145,31 +192,7 @@ async function extractPdf(file: File): Promise<{ text: string; pageCount: number
     for (let pageNum = 1; pageNum <= limit; pageNum++) {
       const page = await pdf.getPage(pageNum)
       const content = await page.getTextContent()
-      const lines: string[] = []
-      let currentLine = ''
-      let lastY: number | undefined
-
-      for (const item of content.items) {
-        if (!('str' in item)) continue
-        const y = Array.isArray(item.transform) ? Math.round(item.transform[5]) : undefined
-        if (lastY !== undefined && y !== undefined && Math.abs(y - lastY) > 4 && currentLine.trim()) {
-          lines.push(currentLine.trim())
-          currentLine = ''
-        }
-        if (currentLine && item.str && !currentLine.endsWith(' ') && !item.str.startsWith(' ')) {
-          currentLine += ' '
-        }
-        currentLine += item.str
-        if (item.hasEOL) {
-          if (currentLine.trim()) lines.push(currentLine.trim())
-          currentLine = ''
-          lastY = undefined
-        } else if (y !== undefined) {
-          lastY = y
-        }
-      }
-      if (currentLine.trim()) lines.push(currentLine.trim())
-      const joined = lines.join('\n').trim()
+      const joined = pdfTextItemsToLines(content.items.flatMap((item) => ('str' in item ? [item] : []))).join('\n').trim()
       if (joined) pageTexts.push(joined)
     }
 
