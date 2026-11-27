@@ -720,6 +720,21 @@ async function assertCloudRoute(task: AiTask, isSample: boolean) {
   }
 }
 
+/**
+ * Turns an App Check failure into a message the person at the keyboard can act on.
+ * After a rejected attestation the SDK refuses new attempts for a day, but it keeps that
+ * back-off in memory on the provider, so reloading the page clears it.
+ */
+function describeAppCheckError(error: unknown): Error {
+  const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : ''
+  // Keep the setup hint for developers in the console, out of the message judges and lecturers see.
+  console.warn('App Check token request failed. Check the reCAPTCHA Enterprise site key, its allowed domains, or a registered debug token.', error)
+  if (code.includes('recaptcha-error')) {
+    return new Error('App Check could not verify this browser because reCAPTCHA did not load, often because an ad or tracker blocker stopped it. Nothing was sent to cloud AI. Allow reCAPTCHA for this site or use a regular Chrome window, then reload the page and try again.')
+  }
+  return new Error('App Check could not verify this browser, so nothing was sent to cloud AI. Reload the page and try again. If it still fails, use a regular Chrome window without a VPN or strict privacy extensions. On-device AI and manual marking still work.')
+}
+
 async function requireCloud(active: Active) {
   if (!navigator.onLine) throw new Error('Cloud AI requires a connection. Your local workspace and class counts stay available offline.')
   if (!cloudConfigured || !siteKey) throw new Error('Firebase App Check is not configured for cloud AI.')
@@ -746,8 +761,8 @@ async function requireCloud(active: Active) {
     const check = ensureAppCheck()
     if (!check) throw new Error('App Check is not configured.')
     await getAppCheckToken(check)
-  } catch {
-    throw new Error('App Check could not verify this browser. Confirm your reCAPTCHA Enterprise site key or debug token.')
+  } catch (error) {
+    throw describeAppCheckError(error)
   }
   if (!active() || !(await readSpace('private')).allowCloud || !active() || Date.now() - remote.fetchTimeMillis > policyAge) {
     throw new Error('Cloud AI is switched off or the current policy could not be verified.')

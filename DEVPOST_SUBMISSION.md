@@ -89,7 +89,7 @@ The whole project was built during the submission period. The project brief (`PR
 
 1. Open <https://gen-lang-client-0769662723.web.app> and choose **Try interactive demo**. Every script is fictional.
 2. In the banner at the top of the demo, press **Allow cloud AI**.
-3. Open **Script 001** and press **Refresh suggestions (Hybrid AI · sample)**. A badge shows where it ran and how long it took. The first cloud request can take 10 to 20 seconds while App Check verifies the browser.
+3. Open **Script 001** and press **Refresh suggestions (Hybrid AI · sample)**. A badge shows where it ran and how long it took. The first cloud request can take 10 to 20 seconds while App Check verifies the browser. If the app says App Check could not verify this browser, reload the page and try again. If it still fails, use a regular Chrome window without a VPN or strict privacy extensions.
 4. Press **Compare second opinion** to see the payload preview before a cloud-only request.
 5. Open **AI inspector** to see each request, its routing policy, where it ran and the bytes sent to the cloud.
 

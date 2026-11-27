@@ -95,7 +95,7 @@ No account is needed for these steps.
 
 1. Open <https://gen-lang-client-0769662723.web.app> and choose **Try interactive demo**. Every script in the demo is fictional.
 2. In the banner at the top of the demo, press **Allow cloud AI**.
-3. Open **Script 001** and press **Refresh suggestions (Hybrid AI · sample)**. A badge shows whether it ran on this device or in the cloud, and how long it took. The first cloud request can take 10 to 20 seconds while App Check verifies the browser.
+3. Open **Script 001** and press **Refresh suggestions (Hybrid AI · sample)**. A badge shows whether it ran on this device or in the cloud, and how long it took. The first cloud request can take 10 to 20 seconds while App Check verifies the browser. If the app says App Check could not verify this browser, reload the page and try again. If it still fails, use a regular Chrome window without a VPN or strict privacy extensions.
 4. Press **Compare second opinion**. The app shows the exact payload before anything is sent.
 5. Open **Sample rubric** and run **Audit rubric quality (Cloud AI)**, or **Sample class picture** and run **Draft teaching plan (Cloud AI)**.
 6. Open **AI inspector** (in the sidebar, or under **Settings** on a phone) to see each request, its routing policy, where it ran and how many bytes went to the cloud.
